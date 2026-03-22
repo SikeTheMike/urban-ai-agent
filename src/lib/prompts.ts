@@ -21,42 +21,42 @@ ${DATABASE_SCHEMA}
 → ORDER BY priority_score DESC (dangerous) or ASC (safe)
 → ALWAYS query grocery_safety_index directly — never use subqueries
 → Example (most dangerous):
-SELECT store_name, city, zip_code, total_crimes, population, ROUND(priority_score, 1) AS priority_score
-FROM urban_ai.grocery_safety_index
-ORDER BY priority_score DESC
+SELECT g.store_name, g.city, g.zip_code, g.total_crimes, g.population, ROUND(g.priority_score, 1) AS priority_score
+FROM urban_ai.grocery_safety_index g
+ORDER BY g.priority_score DESC
 LIMIT 8
 → Example (safest):
-SELECT store_name, city, zip_code, total_crimes, population, ROUND(priority_score, 1) AS priority_score
-FROM urban_ai.grocery_safety_index
-ORDER BY priority_score ASC
+SELECT g.store_name, g.city, g.zip_code, g.total_crimes, g.population, ROUND(g.priority_score, 1) AS priority_score
+FROM urban_ai.grocery_safety_index g
+ORDER BY g.priority_score ASC
 LIMIT 8
 
 "corridors" / "safe routes" / "transit" / "infrastructure" / "which areas need safety"
 → urban_ai.urban_safety_index
 → ORDER BY priority_score DESC (most dangerous corridors) or ASC (safest)
 → Example:
-SELECT zip_code, total_crimes, population, ROUND(priority_score, 1) AS priority_score
-FROM urban_ai.urban_safety_index
-ORDER BY priority_score DESC
+SELECT u.zip_code, u.total_crimes, u.population, ROUND(u.priority_score, 1) AS priority_score
+FROM urban_ai.urban_safety_index u
+ORDER BY u.priority_score DESC
 LIMIT 8
 
 "compare ZIP codes" / "crime by ZIP" / "which ZIP codes have most crime"
 → urban_ai.zip_crime_summary
 → Example:
-SELECT zip_code, total_crimes
-FROM urban_ai.zip_crime_summary
-ORDER BY total_crimes DESC
+SELECT z.zip_code, z.total_crimes
+FROM urban_ai.zip_crime_summary z
+ORDER BY z.total_crimes DESC
 LIMIT 8
 
 "poverty" / "unemployed" / "uninsured" / "vulnerable" / "no vehicle" / "social vulnerability"
 → urban_ai.svi_clean
 → Example:
-SELECT LOCATION, COUNTY, E_TOTPOP AS population,
-       EP_POV150 AS pct_poverty, EP_UNEMP AS pct_unemployed,
-       EP_UNINSUR AS pct_uninsured, EP_NOVEH AS pct_no_vehicle,
-       ROUND(RPL_THEMES, 3) AS vulnerability_score
-FROM urban_ai.svi_clean
-ORDER BY RPL_THEMES DESC
+SELECT s.LOCATION, s.COUNTY, s.E_TOTPOP AS population,
+       s.EP_POV150 AS pct_poverty, s.EP_UNEMP AS pct_unemployed,
+       s.EP_UNINSUR AS pct_uninsured, s.EP_NOVEH AS pct_no_vehicle,
+       ROUND(s.RPL_THEMES, 3) AS vulnerability_score
+FROM urban_ai.svi_clean s
+ORDER BY s.RPL_THEMES DESC
 LIMIT 8
 
 "food desert" / "SNAP" / "food access" / "authorized retailers"
@@ -70,9 +70,9 @@ LIMIT 8
 "income" / "census" / "median income" / "housing"
 → urban_ai.census_clean
 → Example:
-SELECT zip_code, population, median_income, poverty_rate
-FROM urban_ai.census_clean
-ORDER BY median_income ASC
+SELECT c.zip_code, c.population, c.median_income, c.poverty_rate
+FROM urban_ai.census_clean c
+ORDER BY c.median_income ASC
 LIMIT 8
 
 ━━━━ INTENT ━━━━
@@ -88,7 +88,9 @@ City mentioned → add WHERE LOWER(city) LIKE '%phoenix%' (only for real city na
 - NEVER use subqueries (no SELECT inside WHERE IN (...))
 - NEVER use ORDER BY inside a subquery or WHERE clause
 - NEVER use correlated subqueries
-- If you need to filter by top ZIPs, use a simple JOIN or just query the target table directly with ORDER BY + LIMIT
+- NEVER JOIN multiple tables — always query ONE table only
+- If a question could use multiple tables, pick the SINGLE best one and query it directly
+- Always use table alias on every column: g.zip_code, g.store_name etc.
 
 User Question: ${question}
 

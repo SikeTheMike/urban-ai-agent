@@ -564,7 +564,7 @@ export default function Chat() {
       {phase==="disclaimer"&&(
         <div style={{position:"fixed",inset:0,background:"var(--bg)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9998,overflow:"hidden",padding:"20px"}}>
           <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 50% 40%,rgba(139,92,246,0.08) 0%,transparent 60%)",pointerEvents:"none"}}/>
-          <div className={disclaimerExit?"disc-out":disclaimerIn?"disc-in":""} style={{width:"min(620px,96vw)",background:"rgba(10,9,24,0.99)",borderRadius:20,overflow:"hidden",boxShadow:"0 0 120px rgba(139,92,246,0.1),0 80px 160px rgba(0,0,0,0.98)",position:"relative",border:"1px solid rgba(139,92,246,0.2)"}}>
+          <div className={disclaimerExit?"disc-out":disclaimerIn?"disc-in":""} style={{width:"min(620px,96vw)",maxHeight:"92vh",overflowY:"auto",background:"rgba(10,9,24,0.99)",borderRadius:20,boxShadow:"0 0 120px rgba(139,92,246,0.1),0 80px 160px rgba(0,0,0,0.98)",position:"relative",border:"1px solid rgba(139,92,246,0.2)"}}>
             <div className="scan"/>
             <div className="caution" style={{padding:"10px 24px",borderBottom:"1px solid rgba(139,92,246,0.15)",display:"flex",alignItems:"center",gap:10}}>
               <div style={{display:"flex",gap:7}}>{["#ff5f57","#febc2e","#28c840"].map((c,i)=><div key={i} style={{width:10,height:10,borderRadius:"50%",background:c,opacity:0.85}}/>)}</div>
@@ -976,35 +976,61 @@ export default function Chat() {
 
           <div data-reveal="scale" className="pdivider" style={{position:"relative",zIndex:2,margin:"0 auto"}}/>
 
-          {/* ══ BUILT BY ══ */}
-          <section style={{padding:mobile?"60px 24px":"80px 48px",maxWidth:1000,margin:"0 auto",position:"relative",zIndex:2}}>
-            <div data-reveal style={{display:"flex",alignItems:mobile?"flex-start":"center",justifyContent:"space-between",gap:24,flexWrap:"wrap",flexDirection:mobile?"column":"row"}}>
-              <div style={{display:"flex",alignItems:"center",gap:16}}>
-                <div style={{width:52,height:52,borderRadius:14,background:"rgba(139,92,246,0.1)",border:"1px solid rgba(139,92,246,0.3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:800,color:"var(--p2)",boxShadow:"0 0 20px rgba(139,92,246,0.15)",flexShrink:0}}>Z</div>
-                <div>
-                  <div style={{fontWeight:700,fontSize:18,color:"var(--w)",marginBottom:3}}>Zain Shah</div>
-                  <div style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--p2)",letterSpacing:1}}>CS @ ASU · Open to SWE Internships 2026</div>
-                </div>
+          {/* ══ ABOUT ══ */}
+          <section style={{padding:mobile?"60px 24px 80px":"100px 48px",maxWidth:1000,margin:"0 auto",position:"relative",zIndex:2}}>
+            <div data-reveal style={{textAlign:"center",marginBottom:48}}>
+              <div className="slabel">About the Creator</div>
+              <h2 style={{fontWeight:700,fontSize:mobile?"clamp(26px,6vw,36px)":"clamp(28px,3.5vw,44px)",letterSpacing:-1,lineHeight:1.05,marginBottom:24,color:"var(--w)"}}>
+                Built by <span className="pacc">Zain Shah</span>
+              </h2>
+            </div>
+
+            <div data-reveal data-delay="100" className="scard" style={{padding:mobile?"28px 24px":"40px 48px",textAlign:"center",maxWidth:720,margin:"0 auto 32px"}}>
+              {/* Avatar */}
+              <div style={{width:72,height:72,borderRadius:20,background:"rgba(139,92,246,0.12)",border:"1px solid rgba(139,92,246,0.3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,fontWeight:900,color:"var(--p2)",boxShadow:"0 0 28px rgba(139,92,246,0.15)",margin:"0 auto 20px"}}>Z</div>
+
+              <div style={{fontWeight:700,fontSize:20,color:"var(--w)",marginBottom:6,letterSpacing:-0.3}}>Zain Shah</div>
+              <div style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--p2)",letterSpacing:3,textTransform:"uppercase",marginBottom:20}}>CS @ Arizona State University · Class of 2028</div>
+
+              <p style={{fontSize:15,lineHeight:1.85,color:"var(--w60)",maxWidth:560,margin:"0 auto 24px"}}>
+                Sophomore CS student at ASU passionate about AI, data engineering, and building tools that make complex data accessible to everyone. AURA started as a class project and grew into a full-stack AI platform connecting GPT-4o to real Databricks crime data. Currently looking for SWE internships for Summer 2026.
+              </p>
+
+              {/* Tags */}
+              <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap",marginBottom:28}}>
+                {["Python","Next.js","TypeScript","Databricks","OpenAI API","React"].map(tag=>(
+                  <span key={tag} style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--p3)",padding:"4px 12px",borderRadius:100,background:"rgba(139,92,246,0.08)",border:"1px solid rgba(139,92,246,0.18)",letterSpacing:1}}>{tag}</span>
+                ))}
               </div>
-              <div style={{textAlign:"center"}}>
-                <div className="slabel" style={{marginBottom:6}}>What AURA Means</div>
-                <div style={{fontWeight:600,fontSize:16,color:"var(--w)",letterSpacing:-0.2}}>
-                  {[["A","utomated"],["U","rban"],["R","isk"],["A","nalytics"]].map(([g,rest],i)=>(
-                    <span key={i}><span style={{color:"var(--p2)",textShadow:"0 0 12px rgba(139,92,246,0.4)"}}>{g}</span>{rest}{i<3?" ":""}</span>
+
+              {/* What AURA means */}
+              <div style={{padding:"14px 20px",borderRadius:12,background:"rgba(139,92,246,0.04)",border:"1px solid rgba(139,92,246,0.1)",marginBottom:28,display:"inline-block"}}>
+                <div className="slabel" style={{marginBottom:6,textAlign:"center"}}>What AURA Means</div>
+                <div style={{fontWeight:600,fontSize:15,color:"var(--w)",letterSpacing:1}}>
+                  {[["A","utomated "],["U","rban "],["R","isk "],["A","nalytics"]].map(([g,rest],i)=>(
+                    <span key={i}><span style={{color:"var(--p2)",textShadow:"0 0 12px rgba(139,92,246,0.4)"}}>{g}</span>{rest}</span>
                   ))}
                 </div>
               </div>
-              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+
+              {/* Links */}
+              <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}}>
                 <a href="https://github.com/SikeTheMike" target="_blank" rel="noopener noreferrer">
-                  <button className="btn-ghost" style={{display:"flex",alignItems:"center",gap:8,padding:"9px 18px"}}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+                  <button className="btn-ghost" style={{display:"flex",alignItems:"center",gap:8,padding:"10px 22px"}}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
                     GitHub
                   </button>
                 </a>
                 <a href="https://linkedin.com/in/zain-sahir-s-4b1a9a227" target="_blank" rel="noopener noreferrer">
-                  <button className="btn-acc" style={{display:"flex",alignItems:"center",gap:8,padding:"9px 18px"}}>
+                  <button className="btn-acc" style={{display:"flex",alignItems:"center",gap:8,padding:"10px 22px"}}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
                     LinkedIn
+                  </button>
+                </a>
+                <a href="mailto:shahzain.zeza@gmail.com">
+                  <button className="btn-ghost" style={{display:"flex",alignItems:"center",gap:8,padding:"10px 22px"}}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    Email
                   </button>
                 </a>
               </div>

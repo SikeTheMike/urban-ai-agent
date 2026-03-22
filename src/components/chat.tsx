@@ -58,6 +58,9 @@ export default function Chat() {
   const [mapVisible, setMapVisible] = useState(false);
   const [queryCount, setQueryCount] = useState(0);
   const [typedPlaceholder, setTypedPlaceholder] = useState("");
+  const [isMobile, setIsMobile] = useState(false);
+  const [forceDesktop, setForceDesktop] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mapRef = useRef<HTMLDivElement>(null);
@@ -227,6 +230,16 @@ export default function Chat() {
     }, 52);
     return () => clearInterval(interval);
   }, [phase]);
+
+  // Auto-detect mobile
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  const mobile = isMobile && !forceDesktop;
 
   // Glitch
   useEffect(() => {
@@ -743,7 +756,82 @@ export default function Chat() {
           background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
         }
 
-      `}</style>
+        /* ─── MOBILE RESPONSIVE ─── */
+        @keyframes menuSlide {
+          from{ opacity:0; transform:translateY(-16px); }
+          to  { opacity:1; transform:none; }
+        }
+        .mobile-menu { animation:menuSlide 0.35s cubic-bezier(0.16,1,0.3,1) forwards; }
+
+        @keyframes toggleFloat {
+          0%,100%{ transform:translateY(0) scale(1); }
+          50%    { transform:translateY(-3px) scale(1.05); }
+        }
+        .toggle-float { animation:toggleFloat 3s ease-in-out infinite; }
+
+        @media (max-width:767px) {
+          /* Hide desktop nav links + right side on mobile */
+          .nav-desktop { display:none!important; }
+          .nav-right-desktop { display:none!important; }
+          /* Shrink padding everywhere */
+          .section-pad { padding-left:20px!important; padding-right:20px!important; }
+          /* Stack 2-col grids */
+          .grid-2 { grid-template-columns:1fr!important; }
+          .grid-3 { grid-template-columns:1fr!important; }
+          /* Shrink hero padding */
+          .hero-pad { padding:100px 20px 60px!important; }
+          /* Stats row wraps */
+          .stats-row { grid-template-columns:1fr 1fr!important; gap:20px 30px!important; }
+          /* Terminal height */
+          .terminal-h { height:75vh!important; }
+          /* Ticker hidden on mobile — too cluttered */
+          .ticker-wrap { display:none!important; }
+          /* Map height */
+          .map-h { height:300px!important; }
+          /* Beta section padding */
+          .beta-pad { padding:32px 24px!important; }
+          .beta-grid { grid-template-columns:1fr!important; gap:28px!important; }
+          /* Built-by stack */
+          .built-by { flex-direction:column!important; align-items:flex-start!important; gap:20px!important; }
+          /* Footer stack */
+          .footer-row { flex-direction:column!important; gap:12px!important; align-items:flex-start!important; }
+          /* Cards scroll horizontally on mobile */
+          .cards-scroll { flex-wrap:nowrap; }
+          /* Nav height adjust since no ticker */
+          .nav-top { top:0!important; }
+        }
+
+        @media (min-width:768px) {
+          /* Hide mobile hamburger on desktop */
+          .nav-mobile { display:none!important; }
+        }
+
+        /* Toggle button */
+        .view-toggle {
+          position:fixed;
+          bottom:24px;
+          left:24px;
+          z-index:500;
+          width:44px;
+          height:44px;
+          border-radius:4px;
+          background:rgba(7,8,20,0.92);
+          border:1px solid rgba(232,83,58,0.35);
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          cursor:pointer;
+          backdrop-filter:blur(12px);
+          transition:all 0.2s cubic-bezier(0.16,1,0.3,1);
+          box-shadow:0 4px 20px rgba(0,0,0,0.5), 0 0 0 0 rgba(232,83,58,0.3);
+        }
+        .view-toggle:hover {
+          border-color:rgba(232,83,58,0.7);
+          transform:translateY(-2px);
+          box-shadow:0 8px 28px rgba(0,0,0,0.6), 0 0 16px rgba(232,83,58,0.2);
+        }
+        .view-toggle:active { transform:scale(0.95); }
+
 
       {/* ══ BOOT ══ */}
       {phase === "boot" && (
@@ -878,7 +966,7 @@ export default function Chat() {
           )}
 
           {/* ── LIVE TICKER ── */}
-          <div style={{ position:"fixed",top:0,left:0,right:0,zIndex:101,height:26,background:"rgba(4,5,13,0.96)",borderBottom:"1px solid rgba(232,83,58,0.12)",overflow:"hidden",display:"flex",alignItems:"center" }}>
+          <div className="ticker-wrap" style={{ position:"fixed",top:0,left:0,right:0,zIndex:101,height:26,background:"rgba(4,5,13,0.96)",borderBottom:"1px solid rgba(232,83,58,0.12)",overflow:"hidden",display:"flex",alignItems:"center" }}>
             <div style={{ position:"absolute",left:0,top:0,bottom:0,width:80,background:"linear-gradient(90deg,rgba(4,5,13,1),transparent)",zIndex:2,display:"flex",alignItems:"center",paddingLeft:10,gap:6 }}>
               <div style={{ width:5,height:5,borderRadius:"50%",background:"var(--acc)",boxShadow:"0 0 5px var(--acc)" }}/>
               <span style={{ fontFamily:"var(--display)",fontSize:10,fontWeight:700,color:"var(--acc)",letterSpacing:3,textTransform:"uppercase",whiteSpace:"nowrap" }}>Live</span>
@@ -898,7 +986,7 @@ export default function Chat() {
           </div>
 
           {/* ── NAV ── */}
-          <nav style={{ position:"fixed",top:26,left:0,right:0,zIndex:100,background:"rgba(4,5,13,0.82)",backdropFilter:"blur(20px) saturate(160%)",borderBottom:"1px solid rgba(255,255,255,0.05)",height:60,display:"flex",alignItems:"center",padding:"0 48px",justifyContent:"space-between" }}>
+          <nav className="nav-top" style={{ position:"fixed",top:mobile?0:26,left:0,right:0,zIndex:100,background:"rgba(4,5,13,0.92)",backdropFilter:"blur(20px) saturate(160%)",borderBottom:"1px solid rgba(255,255,255,0.05)",height:60,display:"flex",alignItems:"center",padding:mobile?"0 20px":"0 48px",justifyContent:"space-between" }}>
             {/* Logo */}
             <div style={{ display:"flex",alignItems:"center",gap:10 }}>
               <div style={{ width:28,height:28,borderRadius:3,background:"var(--acc)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,fontFamily:"var(--display)",boxShadow:"0 0 16px var(--acc-glow)" }}>A</div>
@@ -906,15 +994,15 @@ export default function Chat() {
               <span style={{ fontFamily:"var(--display)",fontSize:9,fontWeight:700,letterSpacing:2,padding:"2px 8px",borderRadius:2,background:"rgba(232,83,58,0.12)",border:"1px solid rgba(232,83,58,0.3)",color:"var(--acc)",textTransform:"uppercase" }}>Beta</span>
             </div>
 
-            {/* Links */}
-            <div style={{ display:"flex",gap:36,position:"absolute",left:"50%",transform:"translateX(-50%)" }}>
+            {/* Desktop links */}
+            <div className="nav-desktop" style={{ display:"flex",gap:36,position:"absolute",left:"50%",transform:"translateX(-50%)" }}>
               {[["How It Works","#guide"],["Terminal","#terminal"],["System","#system"],["Beta","#beta"]].map(([l,h])=>(
                 <a key={l} href={h} className="nav-link">{l}</a>
               ))}
             </div>
 
-            {/* Right */}
-            <div style={{ display:"flex",gap:14,alignItems:"center" }}>
+            {/* Desktop right */}
+            <div className="nav-right-desktop" style={{ display:"flex",gap:14,alignItems:"center" }}>
               {queryCount>0&&(
                 <div className="count-up" style={{ fontFamily:"var(--mono)",fontSize:9,color:"var(--acc)",padding:"3px 10px",borderRadius:2,background:"rgba(232,83,58,0.08)",border:"1px solid rgba(232,83,58,0.2)",letterSpacing:1 }}>
                   {queryCount} QUER{queryCount===1?"Y":"IES"}
@@ -922,7 +1010,7 @@ export default function Chat() {
               )}
               {ambientRisk!=="neutral"&&(
                 <div style={{ display:"flex",alignItems:"center",gap:5,padding:"3px 10px",borderRadius:2,background:ambientRisk==="critical"?"rgba(232,83,58,0.1)":ambientRisk==="elevated"?"rgba(232,148,58,0.1)":"rgba(58,232,122,0.1)",border:`1px solid ${ambientRisk==="critical"?"rgba(232,83,58,0.3)":ambientRisk==="elevated"?"rgba(232,148,58,0.3)":"rgba(58,232,122,0.3)"}` }}>
-                  <div style={{ width:5,height:5,borderRadius:"50%",background:ambientRisk==="critical"?"#e8533a":ambientRisk==="elevated"?"#e8943a":"#3ae87a",boxShadow:`0 0 5px currentColor` }}/>
+                  <div style={{ width:5,height:5,borderRadius:"50%",background:ambientRisk==="critical"?"#e8533a":ambientRisk==="elevated"?"#e8943a":"#3ae87a" }}/>
                   <span style={{ fontFamily:"var(--display)",fontSize:10,fontWeight:700,color:ambientRisk==="critical"?"#e8533a":ambientRisk==="elevated"?"#e8943a":"#3ae87a",letterSpacing:2,textTransform:"uppercase" }}>{ambientRisk}</span>
                 </div>
               )}
@@ -932,10 +1020,50 @@ export default function Chat() {
               </div>
               <a href="#terminal"><button className="btn-acc">Get Started</button></a>
             </div>
+
+            {/* Mobile right — hamburger + query count */}
+            <div className="nav-mobile" style={{ display:"flex",alignItems:"center",gap:10 }}>
+              {queryCount>0&&(
+                <div style={{ fontFamily:"var(--mono)",fontSize:9,color:"var(--acc)",padding:"3px 8px",borderRadius:2,background:"rgba(232,83,58,0.08)",border:"1px solid rgba(232,83,58,0.2)" }}>
+                  {queryCount}Q
+                </div>
+              )}
+              <button
+                onClick={()=>setMenuOpen(o=>!o)}
+                style={{ width:38,height:38,borderRadius:3,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:5,cursor:"pointer",transition:"all 0.2s",padding:0 }}
+              >
+                <span style={{ display:"block",width:18,height:1.5,background:menuOpen?"var(--acc)":"rgba(255,255,255,0.8)",borderRadius:1,transform:menuOpen?"rotate(45deg) translate(3px,3px)":"none",transition:"all 0.25s cubic-bezier(0.16,1,0.3,1)" }}/>
+                <span style={{ display:"block",width:18,height:1.5,background:menuOpen?"transparent":"rgba(255,255,255,0.8)",borderRadius:1,opacity:menuOpen?0:1,transition:"all 0.25s" }}/>
+                <span style={{ display:"block",width:18,height:1.5,background:menuOpen?"var(--acc)":"rgba(255,255,255,0.8)",borderRadius:1,transform:menuOpen?"rotate(-45deg) translate(3px,-3px)":"none",transition:"all 0.25s cubic-bezier(0.16,1,0.3,1)" }}/>
+              </button>
+            </div>
           </nav>
 
+          {/* Mobile dropdown menu */}
+          {mobile && menuOpen && (
+            <div className="mobile-menu" style={{ position:"fixed",top:60,left:0,right:0,zIndex:99,background:"rgba(4,5,13,0.98)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(232,83,58,0.15)",padding:"16px 20px 20px" }}>
+              {[["How It Works","#guide"],["Terminal","#terminal"],["System","#system"],["Beta","#beta"]].map(([l,h],i)=>(
+                <a key={l} href={h} onClick={()=>setMenuOpen(false)} style={{ display:"block",padding:"14px 0",fontFamily:"var(--display)",fontSize:18,fontWeight:700,color:"var(--w85)",letterSpacing:2,textTransform:"uppercase",borderBottom:"1px solid rgba(255,255,255,0.05)",textDecoration:"none",transition:"color 0.15s" }}
+                  onMouseEnter={e=>(e.currentTarget.style.color="var(--acc)")}
+                  onMouseLeave={e=>(e.currentTarget.style.color="var(--w85)")}
+                >{l}</a>
+              ))}
+              <div style={{ marginTop:16 }}>
+                <a href="#terminal" onClick={()=>setMenuOpen(false)}>
+                  <button className="btn-acc" style={{ width:"100%",padding:"14px",fontSize:14,letterSpacing:2 }}>Try It Now →</button>
+                </a>
+              </div>
+              {ambientRisk!=="neutral"&&(
+                <div style={{ marginTop:12,display:"flex",alignItems:"center",gap:6,padding:"8px 12px",borderRadius:3,background:ambientRisk==="critical"?"rgba(232,83,58,0.08)":ambientRisk==="elevated"?"rgba(232,148,58,0.08)":"rgba(58,232,122,0.08)" }}>
+                  <div style={{ width:5,height:5,borderRadius:"50%",background:ambientRisk==="critical"?"#e8533a":ambientRisk==="elevated"?"#e8943a":"#3ae87a" }}/>
+                  <span style={{ fontFamily:"var(--display)",fontSize:10,fontWeight:700,color:ambientRisk==="critical"?"#e8533a":ambientRisk==="elevated"?"#e8943a":"#3ae87a",letterSpacing:2,textTransform:"uppercase" }}>Risk Level: {ambientRisk}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ══ HERO ══ */}
-          <section style={{ minHeight:"100vh",display:"flex",flexDirection:"column",justifyContent:"center",padding:"110px 48px 80px",position:"relative",zIndex:2,maxWidth:1200,margin:"0 auto" }}>
+          <section className="hero-pad" style={{ minHeight:"100vh",display:"flex",flexDirection:"column",justifyContent:"center",padding:mobile?"100px 20px 60px":"110px 48px 80px",position:"relative",zIndex:2,maxWidth:1200,margin:"0 auto" }}>
 
             <div data-reveal="fade" data-delay="100" style={{ display:"inline-flex",alignItems:"center",gap:8,padding:"5px 14px",borderRadius:2,background:"rgba(232,83,58,0.08)",border:"1px solid rgba(232,83,58,0.2)",fontFamily:"var(--mono)",fontSize:10,color:"var(--acc)",letterSpacing:3,marginBottom:32,textTransform:"uppercase",width:"fit-content" }} className="bfloat">
               <div style={{ width:5,height:5,borderRadius:"50%",background:"var(--acc)",boxShadow:"0 0 6px var(--acc)" }}/>
@@ -970,7 +1098,7 @@ export default function Chat() {
             </div>
 
             {/* Stats row */}
-            <div data-reveal-group data-reveal data-delay="400" style={{ display:"grid",gridTemplateColumns:"repeat(3,auto)",gap:"28px 64px",paddingTop:36,borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+            <div data-reveal-group data-reveal data-delay="400" className="stats-row" style={{ display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"repeat(3,auto)",gap:mobile?"20px 30px":"28px 64px",paddingTop:36,borderTop:"1px solid rgba(255,255,255,0.06)" }}>
               {[["847K+","Crime records indexed"],["Instant","Results per query"],["Free","To explore and test"]].map(([n,l],i)=>(
                 <div key={i}>
                   <div style={{ fontFamily:"var(--display)",fontWeight:900,fontSize:"clamp(30px,4vw,50px)",color:"var(--acc)",lineHeight:1,letterSpacing:-1,marginBottom:6 }}>{n}</div>
@@ -983,7 +1111,7 @@ export default function Chat() {
           <div data-reveal="scale" style={{ height:1,background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent)",margin:"0 48px",position:"relative",zIndex:2 }}/>
 
           {/* ══ HOW IT WORKS ══ */}
-          <section id="guide" style={{ padding:"120px 48px",maxWidth:1200,margin:"0 auto",position:"relative",zIndex:2 }}>
+          <section id="guide" className="section-pad" style={{ padding:mobile?"60px 20px":"120px 48px",maxWidth:1200,margin:"0 auto",position:"relative",zIndex:2 }}>
             <div data-reveal style={{ marginBottom:64 }}>
               <div style={{ fontFamily:"var(--mono)",fontSize:10,color:"var(--acc)",letterSpacing:4,textTransform:"uppercase",marginBottom:14 }}>— How It Works</div>
               <h2 style={{ fontFamily:"var(--display)",fontWeight:900,fontSize:"clamp(36px,5vw,72px)",lineHeight:0.95,letterSpacing:-1,textTransform:"uppercase",color:"var(--w)",marginBottom:16 }}>
@@ -994,7 +1122,7 @@ export default function Chat() {
             </div>
 
             {/* Two-column feature layout */}
-            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:16 }}>
+            <div className="grid-2" style={{ display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:16 }}>
               {[
                 {n:"01",t:"Ask About Any Neighborhood",d:"Type something like 'Is it safe to open a store in ZIP 85031?' or 'What are the riskiest areas in Phoenix?' — AURA understands it instantly.",icon:"💬"},
                 {n:"02",t:"Get Instant Risk Cards",d:"Every result shows up as a clean card with crime numbers, population, and a risk score. CRITICAL means watch out. NOMINAL means you're good.",icon:"🚀"},
@@ -1021,7 +1149,7 @@ export default function Chat() {
             {/* Example queries */}
             <div data-reveal style={{ marginTop:60 }}>
               <div style={{ fontFamily:"var(--mono)",fontSize:9,color:"var(--w40)",letterSpacing:3,textTransform:"uppercase",marginBottom:18 }}>— Example Queries · Click To Use</div>
-              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8 }}>
+              <div className="grid-2" style={{ display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:8 }}>
                 {EXAMPLES.map((ex,i)=>(
                   <div key={i} data-reveal data-delay={`${i*50}`} className="ex-row" style={{ padding:"14px 18px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:3,display:"flex",alignItems:"center",gap:14 }}
                     onClick={()=>{ setQuestion(ex); document.getElementById("terminal")?.scrollIntoView({behavior:"smooth"}); }}>
@@ -1037,7 +1165,7 @@ export default function Chat() {
           <div data-reveal="scale" style={{ height:1,background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent)",margin:"0 48px",position:"relative",zIndex:2 }}/>
 
           {/* ══ TERMINAL ══ */}
-          <section id="terminal" style={{ padding:"120px 48px",maxWidth:1200,margin:"0 auto",position:"relative",zIndex:2 }}>
+          <section id="terminal" className="section-pad" style={{ padding:mobile?"60px 20px":"120px 48px",maxWidth:1200,margin:"0 auto",position:"relative",zIndex:2 }}>
             <div data-reveal style={{ marginBottom:48 }}>
               <div style={{ fontFamily:"var(--mono)",fontSize:10,color:"var(--acc)",letterSpacing:4,textTransform:"uppercase",marginBottom:14 }}>— Intelligence Terminal</div>
               <h2 style={{ fontFamily:"var(--display)",fontWeight:900,fontSize:"clamp(36px,5vw,72px)",lineHeight:0.95,letterSpacing:-1,textTransform:"uppercase",color:"var(--w)" }}>
@@ -1048,7 +1176,7 @@ export default function Chat() {
             <div data-reveal data-delay="100" style={{
               background:"rgba(7,8,20,0.95)",backdropFilter:"blur(20px)",
               border:"1px solid rgba(255,255,255,0.07)",borderRadius:4,
-              display:"flex",flexDirection:"column",height:"68vh",
+              display:"flex",flexDirection:"column",height:mobile?"75vh":"68vh",
               boxShadow:"0 40px 100px rgba(0,0,0,0.7)",
               position:"relative",overflow:"hidden",
             }}>
@@ -1169,7 +1297,7 @@ export default function Chat() {
                     ))}
                   </div>
                 </div>
-                <div ref={mapRef} style={{ height:420,width:"100%",background:"#04050d" }}/>
+                <div ref={mapRef} style={{ height:mobile?300:420,width:"100%",background:"#04050d" }}/>
               </div>
             )}
           </section>
@@ -1177,14 +1305,14 @@ export default function Chat() {
           <div data-reveal="scale" style={{ height:1,background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent)",margin:"0 48px",position:"relative",zIndex:2 }}/>
 
           {/* ══ SYSTEM ══ */}
-          <section id="system" style={{ padding:"120px 48px",maxWidth:1200,margin:"0 auto",position:"relative",zIndex:2 }}>
+          <section id="system" className="section-pad" style={{ padding:mobile?"60px 20px":"120px 48px",maxWidth:1200,margin:"0 auto",position:"relative",zIndex:2 }}>
             <div data-reveal style={{ marginBottom:52 }}>
               <div style={{ fontFamily:"var(--mono)",fontSize:10,color:"var(--acc)",letterSpacing:4,textTransform:"uppercase",marginBottom:14 }}>— System</div>
               <h2 style={{ fontFamily:"var(--display)",fontWeight:900,fontSize:"clamp(36px,5vw,72px)",lineHeight:0.95,letterSpacing:-1,textTransform:"uppercase",color:"var(--w)" }}>
                 Built On Real<br/>Infrastructure
               </h2>
             </div>
-            <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12 }}>
+            <div className="grid-3" style={{ display:"grid",gridTemplateColumns:mobile?"1fr":"repeat(3,1fr)",gap:12 }}>
               {[
                 {icon:"🤖",t:"AI Engine",c:"var(--acc)",d:"GPT-4o-mini at Temperature 0. Deterministic answers. SELECT-only enforcement — zero risk of modifying any data.",delay:0},
                 {icon:"⚡",t:"Databricks",c:"#60a5fa",d:"Direct cluster integration. 847,214 records across ZIP codes, stores, crime totals, and population.",delay:60},
@@ -1203,15 +1331,15 @@ export default function Chat() {
           <div data-reveal="scale" style={{ height:1,background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent)",margin:"0 48px",position:"relative",zIndex:2 }}/>
 
           {/* ══ BETA ══ */}
-          <section id="beta" style={{ padding:"120px 48px",maxWidth:1200,margin:"0 auto",position:"relative",zIndex:2 }}>
-            <div data-reveal style={{ border:"1px solid rgba(232,83,58,0.12)",borderRadius:4,padding:"48px 52px",background:"rgba(232,83,58,0.02)",position:"relative" }} className="betab">
+          <section id="beta" className="section-pad" style={{ padding:mobile?"60px 20px":"120px 48px",maxWidth:1200,margin:"0 auto",position:"relative",zIndex:2 }}>
+            <div data-reveal className="beta-pad" style={{ border:"1px solid rgba(232,83,58,0.12)",borderRadius:4,padding:mobile?"32px 20px":"48px 52px",background:"rgba(232,83,58,0.02)",position:"relative" }} className="betab">
               <div style={{ position:"absolute",top:20,right:24,fontFamily:"var(--display)",fontSize:9,fontWeight:700,letterSpacing:3,padding:"4px 12px",borderRadius:2,background:"rgba(232,83,58,0.1)",border:"1px solid rgba(232,83,58,0.25)",color:"var(--acc)",textTransform:"uppercase" }}>⚠ Beta v0.1</div>
               <div style={{ fontFamily:"var(--mono)",fontSize:10,color:"var(--acc)",letterSpacing:4,textTransform:"uppercase",marginBottom:14 }}>— Beta Program</div>
               <h2 style={{ fontFamily:"var(--display)",fontWeight:900,fontSize:"clamp(30px,4vw,56px)",letterSpacing:-1,lineHeight:0.95,marginBottom:14,textTransform:"uppercase",color:"var(--w)" }}>
                 Rough Edges.<br/>Real Data.
               </h2>
               <p style={{ fontFamily:"var(--body)",fontSize:16,color:"var(--w65)",marginBottom:40,maxWidth:480 }}>AURA is experimental. Powerful but not perfect.</p>
-              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:52 }}>
+              <div className="beta-grid" style={{ display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:mobile?"28px":"52px" }}>
                 <div>
                   <div style={{ fontFamily:"var(--display)",fontSize:9,fontWeight:700,letterSpacing:3,color:"rgba(232,83,58,0.5)",marginBottom:18,textTransform:"uppercase" }}>Known Limitations</div>
                   {["Queries may occasionally fail or misfire","Some questions get misinterpreted","Cluster may time out — just retry","Indexed data only, not a live feed","Not for operational or policy decisions"].map((x,i)=>(
@@ -1240,8 +1368,8 @@ export default function Chat() {
           <div data-reveal="scale" style={{ height:1,background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent)",margin:"0 48px",position:"relative",zIndex:2 }}/>
 
           {/* ══ BUILT BY ══ */}
-          <section style={{ padding:"80px 48px",maxWidth:1200,margin:"0 auto",position:"relative",zIndex:2 }}>
-            <div data-reveal style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:32,flexWrap:"wrap" }}>
+          <section style={{ padding:mobile?"40px 20px":"80px 48px",maxWidth:1200,margin:"0 auto",position:"relative",zIndex:2 }}>
+            <div data-reveal className="built-by" style={{ display:"flex",alignItems:mobile?"flex-start":"center",justifyContent:"space-between",gap:32,flexWrap:"wrap",flexDirection:mobile?"column":"row" }}>
               <div style={{ display:"flex",alignItems:"center",gap:20 }}>
                 <div style={{ width:56,height:56,borderRadius:4,background:"var(--acc)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:900,fontFamily:"var(--display)",boxShadow:"0 0 24px var(--acc-glow)",flexShrink:0 }}>Z</div>
                 <div>
@@ -1274,15 +1402,36 @@ export default function Chat() {
             </div>
           </section>
 
-          {/* ══ FOOTER ══ */}
-          <div style={{ borderTop:"1px solid rgba(255,255,255,0.05)",padding:"22px 48px",display:"flex",justifyContent:"space-between",alignItems:"center",position:"relative",zIndex:2 }}>
+          {/* FOOTER */}
+          <div className="footer-row" style={{ borderTop:"1px solid rgba(255,255,255,0.05)",padding:mobile?"16px 20px":"22px 48px",display:"flex",justifyContent:"space-between",alignItems:"center",position:"relative",zIndex:2,flexDirection:mobile?"column":"row",gap:mobile?"10px":0 }}>
             <div style={{ display:"flex",alignItems:"center",gap:8 }}>
               <div style={{ width:22,height:22,borderRadius:2,background:"var(--acc)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:900,fontFamily:"var(--display)" }}>A</div>
               <span style={{ fontFamily:"var(--display)",fontWeight:800,fontSize:14,letterSpacing:2,textTransform:"uppercase" }}>AURA</span>
             </div>
-            <div style={{ fontFamily:"var(--mono)",fontSize:9,color:"var(--w40)",letterSpacing:1,textTransform:"uppercase" }}>Automated Urban Risk Analytics · v0.1 Beta · Databricks + OpenAI</div>
+            <div style={{ fontFamily:"var(--mono)",fontSize:9,color:"var(--w40)",letterSpacing:1,textTransform:"uppercase",textAlign:mobile?"center":"left" }}>Automated Urban Risk Analytics · v0.1 Beta</div>
             <div style={{ fontFamily:"var(--mono)",fontSize:9,color:"rgba(255,255,255,0.12)",letterSpacing:1 }}>© 2026 Zain Shah</div>
           </div>
+
+          {/* ── VIEW TOGGLE BUTTON ── */}
+          <button
+            className="view-toggle toggle-float"
+            onClick={() => setForceDesktop(f => !f)}
+            title={mobile ? "Switch to desktop view" : "Switch to mobile view"}
+            style={{ position:"fixed",bottom:24,left:24,zIndex:500 }}
+          >
+            {mobile ? (
+              /* Desktop icon */
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
+            ) : (
+              /* Mobile icon */
+              <svg width="16" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
+              </svg>
+            )}
+          </button>
+
         </div>
       )}
 

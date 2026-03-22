@@ -16,13 +16,19 @@ ${DATABASE_SCHEMA}
 
 ━━━━ WHICH TABLE TO USE ━━━━
 
-"stores" / "grocery stores" / "which stores" / "store in dangerous area"
+"stores" / "grocery stores" / "which stores" / "store in dangerous area" / "stores in dangerous ZIP"
 → urban_ai.grocery_safety_index
 → ORDER BY priority_score DESC (dangerous) or ASC (safe)
-→ Example:
+→ ALWAYS query grocery_safety_index directly — never use subqueries
+→ Example (most dangerous):
 SELECT store_name, city, zip_code, total_crimes, population, ROUND(priority_score, 1) AS priority_score
 FROM urban_ai.grocery_safety_index
 ORDER BY priority_score DESC
+LIMIT 8
+→ Example (safest):
+SELECT store_name, city, zip_code, total_crimes, population, ROUND(priority_score, 1) AS priority_score
+FROM urban_ai.grocery_safety_index
+ORDER BY priority_score ASC
 LIMIT 8
 
 "corridors" / "safe routes" / "transit" / "infrastructure" / "which areas need safety"
@@ -79,6 +85,10 @@ City mentioned → add WHERE LOWER(city) LIKE '%phoenix%' (only for real city na
 - No GROUP BY on grocery_safety_index
 - No WHERE on abstract words like "corridor", "area", "zone"
 - No markdown or explanation — SQL only
+- NEVER use subqueries (no SELECT inside WHERE IN (...))
+- NEVER use ORDER BY inside a subquery or WHERE clause
+- NEVER use correlated subqueries
+- If you need to filter by top ZIPs, use a simple JOIN or just query the target table directly with ORDER BY + LIMIT
 
 User Question: ${question}
 

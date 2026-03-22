@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateSQL, generateExplanation } from "@/src/lib/openai";
+import { generateSQL, generateExplanation, normalizeResults } from "@/src/lib/openai";
 import { runQuery } from "@/src/lib/databricks";
 
 export async function POST(req: Request) {
@@ -7,40 +7,32 @@ export async function POST(req: Request) {
     const { question } = await req.json();
 
     if (!question) {
-      return NextResponse.json(
-        { error: "Question required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Question required" }, { status: 400 });
     }
 
-    // 1. Get the SQL from the LLM
+    // 1. Generate SQL from natural language
     const sql = await generateSQL(question);
 
-    // 2. SECURITY GUARDRAIL: Only allow SELECT queries
+    // 2. Security double-check
     if (!sql.trim().toUpperCase().startsWith("SELECT")) {
-      return NextResponse.json(
-        { error: "Only SELECT queries are allowed for security reasons." },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Only SELECT queries are allowed." }, { status: 403 });
     }
 
-    // 3. Run the safe query against Databricks
-    const results = await runQuery(sql);
+    // 3. Run against Databricks
+    const rawResults = await runQuery(sql);
 
-    // 4. Have the AI explain the JSON results in plain English
+    // 4. Normalize into consistent card format
+    const results = normalizeResults(rawResults as any[]);
+
+    // 5. Generate plain-English explanation
     const answer = await generateExplanation(question, results);
 
-    // 5. Return the full payload to the frontend
-    return NextResponse.json({
-      sql,
-      results,
-      answer
-    });
+    return NextResponse.json({ sql, results, answer });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("API Error:", error);
     return NextResponse.json(
-      { error: "Query failed or database connection error" },
+      { error: error?.message ?? "Query failed or database connection error" },
       { status: 500 }
     );
   }

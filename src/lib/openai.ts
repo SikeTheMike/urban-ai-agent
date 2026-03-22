@@ -12,29 +12,21 @@ export function normalizeResults(results: any[]): any[] {
   if (!results || results.length === 0) return [];
 
   return results.map((row) => {
-    // ── grocery_safety_index / urban_priority_index ──────────
-    if (row.priority_score !== undefined) {
+    // ── grocery_safety_index ─────────────────────────────────
+    // priority_score is unbounded raw score (e.g. 139, 3030 etc)
+    // safety_score goes up to ~1000 (inverse — higher = safer)
+    // Normalize priority_score to 0–100 using a sensible cap of 200
+    if (row.priority_score !== undefined || row.safety_score !== undefined) {
+      const rawPriority = Number(row.priority_score ?? 0);
+      // Cap at 200, scale to 0-100
+      const normalizedScore = Math.min(100, Math.round((rawPriority / 200) * 100));
       return {
         store_name:     row.store_name ?? null,
         city:           row.city ?? "Unknown",
         zip_code:       String(row.zip_code ?? ""),
         total_crimes:   Number(row.total_crimes ?? 0),
         population:     Number(row.population ?? 0),
-        priority_score: Math.round(Number(row.priority_score) * 10) / 10,
-      };
-    }
-
-    // ── urban_safety_index ───────────────────────────────────
-    // safety_score is 0–1 where 1 = safest → invert to risk
-    if (row.safety_score !== undefined) {
-      const risk = Math.max(0, Math.min(100, Math.round((1 - Number(row.safety_score)) * 100)));
-      return {
-        store_name:     null,
-        city:           row.city ?? "Unknown",
-        zip_code:       String(row.zip_code ?? ""),
-        total_crimes:   Number(row.crime_index ?? 0),
-        population:     Number(row.population ?? 0),
-        priority_score: risk,
+        priority_score: normalizedScore,
       };
     }
 

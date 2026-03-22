@@ -11,6 +11,8 @@ export default function Chat() {
   const [scrollY, setScrollY]   = useState(0);
   const feedRef  = useRef<HTMLDivElement>(null);
   const appRef   = useRef<HTMLDivElement>(null);
+  const [toastPhase, setToastPhase] = useState<"hidden"|"crack"|"open"|"closing">("hidden");
+  const hasToasted = useRef(false);
 
   const BOOT_LINES = [
     { t: "▸ AURA URBAN RISK ANALYTICS v0.1-beta",    c: "lc" },
@@ -52,6 +54,14 @@ export default function Chat() {
   async function fire() {
     if (!question.trim() || loading) return;
     const q = question.trim();
+    // First query toast
+    if (!hasToasted.current) {
+      hasToasted.current = true;
+      setToastPhase("crack");
+      setTimeout(() => setToastPhase("open"), 600);
+      setTimeout(() => setToastPhase("closing"), 9500);
+      setTimeout(() => setToastPhase("hidden"), 11200);
+    }
     setMessages(p => [...p, { role: "user", content: q }]);
     setLoading(true);
     setQuestion("");
@@ -242,6 +252,56 @@ export default function Chat() {
 
         /* Nav button explicit white text */
         .nav-pill-btn { color: #ffffff !important; }
+
+        /* ── TOAST ── */
+        @keyframes capsuleAppear {
+          0%   { opacity:0; transform:translateY(20px) scale(0.82); }
+          55%  { opacity:1; transform:translateY(-4px) scale(1.03); }
+          100% { opacity:1; transform:translateY(0) scale(1); }
+        }
+        @keyframes capsuleCrack {
+          0%   { transform:scale(1) rotate(0deg); }
+          20%  { transform:scale(1.18) rotate(-5deg); }
+          45%  { transform:scale(1.12) rotate(4deg); }
+          70%  { transform:scale(1.06) rotate(-2deg); }
+          100% { transform:scale(1) rotate(0deg); }
+        }
+        @keyframes msgUnroll {
+          0%   { opacity:0; max-height:0; transform:translateY(-10px); }
+          40%  { opacity:0.6; }
+          100% { opacity:1; max-height:160px; transform:translateY(0); }
+        }
+        @keyframes msgRollUp {
+          0%   { opacity:1; max-height:160px; transform:translateY(0) scale(1); filter:blur(0px); }
+          40%  { opacity:0.6; transform:translateY(-4px) scale(0.98); filter:blur(0px); }
+          100% { opacity:0; max-height:0; transform:translateY(-12px) scale(0.95); filter:blur(3px); }
+        }
+        @keyframes toastExit {
+          0%   { opacity:1; transform:translateY(0) scale(1); filter:blur(0px); }
+          50%  { opacity:0.5; transform:translateY(6px) scale(0.96); filter:blur(1px); }
+          100% { opacity:0; transform:translateY(16px) scale(0.88); filter:blur(6px); }
+        }
+        @keyframes iconPop {
+          0%   { transform:scale(0.4) rotate(-25deg); opacity:0; }
+          55%  { transform:scale(1.22) rotate(6deg); opacity:1; }
+          80%  { transform:scale(0.96) rotate(-1deg); }
+          100% { transform:scale(1) rotate(0deg); opacity:1; }
+        }
+        @keyframes crackLine {
+          0%   { width:0; opacity:0; }
+          30%  { opacity:1; }
+          100% { width:100%; opacity:0; }
+        }
+        @keyframes shimmer {
+          0%   { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        .toast-appear  { animation: capsuleAppear 0.75s cubic-bezier(0.16,1,0.3,1) forwards; }
+        .toast-exit    { animation: toastExit 1.6s cubic-bezier(0.4,0,0.6,1) forwards; }
+        .icon-pop      { animation: iconPop 0.7s cubic-bezier(0.16,1,0.3,1) 0.1s both; }
+        .icon-crack    { animation: capsuleCrack 0.55s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+        .msg-unroll    { animation: msgUnroll 0.7s cubic-bezier(0.16,1,0.3,1) 0.45s both; overflow:hidden; }
+        .msg-rollup    { animation: msgRollUp 0.9s cubic-bezier(0.4,0,0.6,1) forwards; overflow:hidden; }
 
         /* gradient text */
         .grad { background: linear-gradient(135deg, var(--p2), var(--p3), var(--p4)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
@@ -803,6 +863,110 @@ export default function Chat() {
             <div style={{ fontFamily:"var(--mono)", fontSize:10, color:"var(--w30)", letterSpacing:1 }}>AUTOMATED URBAN RISK ANALYTICS · v0.1 BETA · DATABRICKS + OPENAI</div>
             <div style={{ fontFamily:"var(--mono)", fontSize:10, color:"rgba(255,255,255,0.08)", letterSpacing:1 }}>© 2026 ZAIN SHAH</div>
           </div>
+        </div>
+      )}
+
+      {/* ══════ BETA TOAST NOTIFICATION ══════ */}
+      {toastPhase !== "hidden" && (
+        <div
+          className={toastPhase === "closing" ? "toast-exit" : "toast-appear"}
+          style={{
+            position: "fixed",
+            bottom: 32,
+            right: 32,
+            zIndex: 9998,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: 0,
+            pointerEvents: "none",
+          }}
+        >
+          {/* The pill/capsule icon that cracks open */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: 6 }}>
+            <div
+              className={toastPhase === "crack" ? "icon-crack" : "icon-pop"}
+              style={{
+                width: 44, height: 44, borderRadius: 14,
+                background: "linear-gradient(135deg, var(--ind), var(--p), var(--p3))",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: "0 0 24px var(--glow), 0 8px 24px rgba(0,0,0,0.5)",
+                position: "relative", overflow: "hidden",
+              }}
+            >
+              {/* Shimmer sweep on crack */}
+              {toastPhase === "crack" && (
+                <div style={{
+                  position: "absolute", inset: 0,
+                  background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%)",
+                  backgroundSize: "200% 100%",
+                  animation: "shimmer 0.4s ease forwards",
+                }}/>
+              )}
+              {/* Crack line */}
+              {toastPhase === "crack" && (
+                <div style={{
+                  position: "absolute", top: "50%", left: 0,
+                  height: 1, background: "rgba(255,255,255,0.8)",
+                  animation: "crackLine 0.35s ease forwards",
+                }}/>
+              )}
+              {/* Icon — warning triangle */}
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+          </div>
+
+          {/* Message card that unrolls out */}
+          {(toastPhase === "open" || toastPhase === "closing") && (
+            <div
+              className={toastPhase === "closing" ? "msg-rollup" : "msg-unroll"}
+              style={{
+                width: 300,
+                background: "rgba(10,12,28,0.97)",
+                border: "1px solid rgba(124,58,237,0.3)",
+                borderRadius: "16px 4px 16px 16px",
+                padding: "16px 18px",
+                boxShadow: "0 0 40px rgba(124,58,237,0.15), 0 20px 60px rgba(0,0,0,0.6)",
+                backdropFilter: "blur(20px)",
+              }}
+            >
+              {/* Top row */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <div style={{
+                  width: 6, height: 6, borderRadius: "50%",
+                  background: "#ff9f0a", boxShadow: "0 0 6px #ff9f0a",
+                  flexShrink: 0,
+                }}/>
+                <span style={{
+                  fontFamily: "var(--mono)", fontSize: 9, letterSpacing: 3,
+                  color: "#ff9f0a",
+                }}>HEADS UP · BETA</span>
+              </div>
+
+              {/* Message */}
+              <p style={{
+                fontSize: 13, lineHeight: 1.7,
+                color: "rgba(255,255,255,0.75)",
+                marginBottom: 12,
+              }}>
+                First couple of queries might be a little slow — AURA is still spinning up its cluster. Hang tight, it gets faster! 🚀
+              </p>
+
+              {/* Bottom label */}
+              <div style={{
+                fontFamily: "var(--mono)", fontSize: 9, letterSpacing: 2,
+                color: "rgba(255,255,255,0.2)",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+              }}>
+                <span>AUTOMATED URBAN RISK ANALYTICS</span>
+                <span>v0.1</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>

@@ -12,21 +12,27 @@ export function normalizeResults(results: any[]): any[] {
   if (!results || results.length === 0) return [];
 
   return results.map((row) => {
-    // ── grocery_safety_index ─────────────────────────────────
-    // priority_score is unbounded raw score (e.g. 139, 3030 etc)
-    // safety_score goes up to ~1000 (inverse — higher = safer)
-    // Normalize priority_score to 0–100 using a sensible cap of 200
+    // ── grocery_safety_index / urban_priority_index ─────────
+    // Real data ranges:
+    //   priority_score: 0.17 (safest) → ~3030 (most dangerous)
+    //   urban_priority_index priority_score: up to ~864
+    // Normalize to 0–100 using log scale so mid-range scores
+    // aren't all squashed at the bottom
     if (row.priority_score !== undefined || row.safety_score !== undefined) {
-      const rawPriority = Number(row.priority_score ?? 0);
-      // Cap at 200, scale to 0-100
-      const normalizedScore = Math.min(100, Math.round((rawPriority / 200) * 100));
+      const raw = Math.max(0, Number(row.priority_score ?? 0));
+      // Log scale: log(1 + score) / log(1 + 3030) * 100
+      // This gives: 0.17→0, 139→53, 530→72, 858→79, 3030→100
+      const MAX_SCORE = 3030;
+      const normalized = raw === 0
+        ? 0
+        : Math.min(100, Math.round((Math.log(1 + raw) / Math.log(1 + MAX_SCORE)) * 100));
       return {
         store_name:     row.store_name ?? null,
         city:           row.city ?? "Unknown",
         zip_code:       String(row.zip_code ?? ""),
         total_crimes:   Number(row.total_crimes ?? 0),
         population:     Number(row.population ?? 0),
-        priority_score: normalizedScore,
+        priority_score: normalized,
       };
     }
 

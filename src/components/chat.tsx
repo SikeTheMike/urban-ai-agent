@@ -116,8 +116,17 @@ export default function Chat() {
           --sans:   'Inter', sans-serif;
         }
 
-        html { background: var(--bg); scroll-behavior: smooth; }
-        body { overflow-x: hidden; font-family: var(--sans); color: var(--w); }
+        html, body, #__next, [data-nextjs-scroll-focus-boundary] {
+          background: var(--bg) !important;
+          color-scheme: dark !important;
+          scroll-behavior: smooth;
+        }
+        body { overflow-x: hidden; font-family: var(--sans); color: var(--w); background: var(--bg) !important; }
+        /* Nuclear override — kill ANY light theme injected by Next.js/Tailwind/globals */
+        *, *::before, *::after { color-scheme: dark !important; }
+        @media (prefers-color-scheme: light) {
+          html { background: var(--bg) !important; color: var(--w) !important; }
+        }
 
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -204,7 +213,7 @@ export default function Chat() {
         .pill:active { transform: translateY(0); }
 
         .ghost { transition: all 0.2s ease; cursor: pointer; }
-        .ghost:hover { background: rgba(255,255,255,0.08) !important; border-color: var(--w30) !important; transform: translateY(-2px); }
+        .ghost:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(255,255,255,0.4) !important; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.4) !important; }
 
         .ex-row { transition: all 0.18s ease; cursor: pointer; }
         .ex-row:hover { background: rgba(124,58,237,0.1) !important; border-color: rgba(124,58,237,0.4) !important; transform: translateX(4px); }
@@ -226,6 +235,13 @@ export default function Chat() {
 
         @keyframes badgeFloat { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-5px);} }
         .bfloat { animation: badgeFloat 3.5s ease-in-out infinite; }
+
+        /* Force dark on everything including inputs, selects */
+        input, button, select, textarea { color-scheme: dark; background-color: transparent; }
+        a { color: inherit; }
+
+        /* Nav button explicit white text */
+        .nav-pill-btn { color: #ffffff !important; }
 
         /* gradient text */
         .grad { background: linear-gradient(135deg, var(--p2), var(--p3), var(--p4)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
@@ -344,7 +360,7 @@ export default function Chat() {
                 <div className="pill" style={{
                   padding: "9px 24px", borderRadius: 100,
                   background: "linear-gradient(135deg, var(--ind), var(--p), var(--p2))",
-                  color: "var(--w)", fontSize: 14, fontWeight: 700,
+                  color: "#ffffff", fontSize: 14, fontWeight: 700,
                   boxShadow: "0 0 22px var(--glow2), 0 4px 16px rgba(0,0,0,0.4)",
                 }}>Get Started</div>
               </a>
@@ -400,21 +416,30 @@ export default function Chat() {
                 Ask anything in plain English. AURA converts it into precision Databricks queries — returning live crime, population, and safety intelligence instantly.
               </p>
 
-              <div className="h4" style={{ display: "flex", gap: 12, justifyContent: "center", marginBottom: 80 }}>
+              <div className="h4" style={{ display: "flex", gap: 14, justifyContent: "center", marginBottom: 80, alignItems: "center" }}>
                 <a href="#terminal" style={{ textDecoration: "none" }}>
                   <div className="pill" style={{
-                    padding: "15px 40px", borderRadius: 100,
+                    padding: "16px 42px", borderRadius: 100,
                     background: "linear-gradient(135deg, var(--ind), var(--p), var(--p2))",
-                    color: "var(--w)", fontSize: 16, fontWeight: 700,
+                    color: "#fff", fontSize: 16, fontWeight: 700,
                     boxShadow: "0 0 40px var(--glow), 0 0 80px rgba(124,58,237,0.2), 0 8px 32px rgba(0,0,0,0.5)",
                     display: "inline-flex", alignItems: "center", gap: 10,
+                    letterSpacing: -0.2,
                   }}>
                     Get Started
                     <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                   </div>
                 </a>
                 <a href="#guide" style={{ textDecoration: "none" }}>
-                  <div className="ghost" style={{ padding: "15px 36px", borderRadius: 100, background: "rgba(255,255,255,0.04)", border: "1px solid var(--b2)", color: "var(--w80)", fontSize: 16, fontWeight: 500 }}>
+                  <div className="ghost" style={{
+                    padding: "15px 36px", borderRadius: 100,
+                    background: "rgba(255,255,255,0.07)",
+                    border: "1.5px solid rgba(255,255,255,0.25)",
+                    color: "#fff", fontSize: 16, fontWeight: 600,
+                    letterSpacing: -0.2,
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)",
+                    backdropFilter: "blur(10px)",
+                  }}>
                     Learn More
                   </div>
                 </a>

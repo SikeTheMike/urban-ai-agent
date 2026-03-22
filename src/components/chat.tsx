@@ -1,961 +1,711 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 export default function Chat() {
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [bootPhase, setBootPhase] = useState<"loading"|"hero"|"done">("loading");
-  const [loadPct, setLoadPct] = useState(0);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [loading, setLoading]   = useState(false);
+  const [phase, setPhase]       = useState<"boot"|"exit"|"app">("boot");
+  const [bootLine, setBootLine] = useState(0);
+  const [scrollY, setScrollY]   = useState(0);
+  const feedRef  = useRef<HTMLDivElement>(null);
+  const appRef   = useRef<HTMLDivElement>(null);
 
+  const BOOT_LINES = [
+    { t: "▸ AURA URBAN RISK ANALYTICS v0.1-beta",    c: "lc" },
+    { t: "▸ Establishing satellite uplink...",         c: "dim" },
+    { t: "▸ Connecting to Databricks cluster...",      c: "dim" },
+    { t: "▸ Loading 847,214 indexed records...",       c: "dim" },
+    { t: "▸ Calibrating GPT-4o risk models...",        c: "dim" },
+    { t: "▸ SELECT-only guardrails enforced ✓",        c: "ok" },
+    { t: "▸ Encryption layer active ✓",                c: "ok" },
+    { t: "▸ System ready. Welcome.",                   c: "lc" },
+  ];
+
+  // Boot sequence
   useEffect(() => {
-    // Phase 1: animate loading bar from 0→100 over ~2s
-    let pct = 0;
-    const tick = setInterval(() => {
-      pct += Math.random() * 8 + 2;
-      if (pct >= 100) {
-        pct = 100;
-        clearInterval(tick);
-        setLoadPct(100);
-        // Phase 2: brief pause then show hero overlay
-        setTimeout(() => {
-          setBootPhase("hero");
-        }, 400);
-      } else {
-        setLoadPct(Math.min(pct, 99));
+    let i = 0;
+    const t = setInterval(() => {
+      i++;
+      setBootLine(i);
+      if (i >= BOOT_LINES.length) {
+        clearInterval(t);
+        setTimeout(() => setPhase("exit"), 700);
+        setTimeout(() => setPhase("app"), 1500);
       }
-    }, 80);
-    return () => clearInterval(tick);
+    }, 210);
+    return () => clearInterval(t);
+  }, []);
+
+  // Scroll tracker for scroll-reveal animations
+  useEffect(() => {
+    const onScroll = () => setScrollY(window.scrollY);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   useEffect(() => {
-    const move = (e: MouseEvent) => setMousePos({ x: e.clientX, y: e.clientY });
-    window.addEventListener("mousemove", move);
-    return () => window.removeEventListener("mousemove", move);
-  }, []);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
+    feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  async function askQuestion() {
+  async function fire() {
     if (!question.trim() || loading) return;
     const q = question.trim();
-    setMessages((prev) => [...prev, { role: "user", content: q }]);
+    setMessages(p => [...p, { role: "user", content: q }]);
     setLoading(true);
     setQuestion("");
-
     try {
-      const res = await fetch("/api/query", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q }),
-      });
+      const res  = await fetch("/api/query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: q }) });
       const data = await res.json();
-      setMessages((prev) => [...prev, {
-        role: "assistant",
-        sql: data.sql,
-        results: data.results,
-        answer: data.answer,
-      }]);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+      setMessages(p => [...p, { role: "assistant", results: data.results, answer: data.answer }]);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   }
 
-  const getRiskColor = (score: number) => {
-    if (score >= 50) return { color: "#ff3b3b", glow: "rgba(255,59,59,0.6)", label: "CRITICAL" };
-    if (score >= 20) return { color: "#ffaa00", glow: "rgba(255,170,0,0.6)", label: "ELEVATED" };
-    return { color: "#00e5ff", glow: "rgba(0,229,255,0.6)", label: "NOMINAL" };
+  const riskOf = (s: number) =>
+    s >= 50 ? { c: "#ff453a", bg: "rgba(255,69,58,0.07)",  l: "CRITICAL" }
+    : s >= 20 ? { c: "#ff9f0a", bg: "rgba(255,159,10,0.07)", l: "ELEVATED" }
+    :           { c: "#30d158", bg: "rgba(48,209,88,0.07)",  l: "NOMINAL"  };
+
+  // Scroll reveal helper — returns opacity/transform based on scroll position
+  const reveal = (triggerY: number, range = 120) => {
+    const p = Math.min(1, Math.max(0, (scrollY - triggerY) / range));
+    return { opacity: p, transform: `translateY(${(1 - p) * 30}px)` };
   };
+
+  const EXAMPLES = [
+    "Which grocery stores are in the most dangerous ZIP codes?",
+    "Show the top 5 highest risk locations in Phoenix",
+    "Which areas have the lowest crime for safe transit?",
+    "Find stores with high population but low crime scores",
+    "Compare crime density across different ZIP codes",
+    "Which corridors need immediate safety infrastructure?",
+  ];
 
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=Inter:wght@300;400;600;700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;700&display=swap');
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         :root {
-          --cyan: #00e5ff;
-          --red: #ff3b3b;
-          --gold: #ffaa00;
-          --bg: #020408;
-          --surface: #080e14;
-          --border: rgba(0,229,255,0.15);
-          --mono: 'Share Tech Mono', monospace;
-          --display: 'Bebas Neue', sans-serif;
-          --body: 'Inter', sans-serif;
+          --bg:     #06070f;
+          --bg2:    #09091a;
+          --bg3:    #0d1020;
+          --bg4:    #111428;
+          --bg5:    #0a0c1e;
+          --p:      #7c3aed;
+          --p2:     #8b5cf6;
+          --p3:     #a78bfa;
+          --p4:     #c4b5fd;
+          --ind:    #4f46e5;
+          --glow:   rgba(124,58,237,0.45);
+          --glow2:  rgba(124,58,237,0.18);
+          --glow3:  rgba(99,102,241,0.12);
+          --w:      #ffffff;
+          --w80:    rgba(255,255,255,0.8);
+          --w55:    rgba(255,255,255,0.55);
+          --w30:    rgba(255,255,255,0.3);
+          --w10:    rgba(255,255,255,0.1);
+          --w05:    rgba(255,255,255,0.05);
+          --b:      rgba(255,255,255,0.08);
+          --b2:     rgba(255,255,255,0.13);
+          --mono:   'JetBrains Mono', monospace;
+          --sans:   'Inter', sans-serif;
         }
 
-        html { scroll-behavior: smooth; background: var(--bg); }
+        html { background: var(--bg); scroll-behavior: smooth; }
+        body { overflow-x: hidden; font-family: var(--sans); color: var(--w); }
 
-        body { overflow-x: hidden; cursor: none !important; }
-        * { cursor: none !important; }
-
-        /* CUSTOM CURSOR — sleek arrow pointer */
-        .cursor-pointer {
-          position: fixed; top: 0; left: 0;
-          pointer-events: none; z-index: 99999;
-          transform: translate(0, 0);
-          width: 28px; height: 28px;
-          filter: drop-shadow(0 0 4px rgba(0,229,255,0.6));
-        }
-
-
-        /* BOOT SCREEN — AURA logo splash */
-        .boot-screen {
-          position: fixed; inset: 0; background: var(--bg);
-          display: flex; flex-direction: column; justify-content: center; align-items: center;
-          z-index: 9999;
-          transition: opacity 0.9s ease, transform 0.9s ease;
-        }
-        .boot-screen.done { opacity: 0; pointer-events: none; transform: scale(1.03); }
-
-        @keyframes bootLogoIn {
-          0%   { opacity: 0; letter-spacing: 40px; }
-          60%  { opacity: 1; letter-spacing: 20px; }
-          100% { opacity: 1; letter-spacing: 20px; }
-        }
-        @keyframes bootSubIn {
-          0%,40% { opacity: 0; transform: translateY(8px); }
-          100%   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes bootBarFill {
-          0%   { width: 0%; }
-          100% { width: 100%; }
-        }
-        .boot-logo {
-          font-family: var(--display);
-          font-size: clamp(72px, 16vw, 160px);
-          color: var(--cyan);
-          text-shadow: 0 0 60px rgba(0,229,255,0.5), 0 0 120px rgba(0,229,255,0.2);
-          animation: bootLogoIn 1s cubic-bezier(0.16,1,0.3,1) forwards;
-        }
-        .boot-sub {
-          font-family: var(--mono);
-          font-size: clamp(10px, 1.5vw, 13px);
-          letter-spacing: 6px;
-          color: rgba(0,229,255,0.4);
-          margin-top: 16px;
-          animation: bootSubIn 1.4s ease forwards;
-        }
-        .boot-bar-wrap {
-          margin-top: 48px;
-          width: clamp(200px, 30vw, 360px);
-          height: 2px;
-          background: rgba(0,229,255,0.1);
-          border-radius: 2px;
-          overflow: hidden;
-          animation: bootSubIn 1.4s ease forwards;
-        }
-        .boot-bar {
-          height: 100%;
-          background: linear-gradient(90deg, transparent, var(--cyan));
-          box-shadow: 0 0 10px var(--cyan);
-          animation: bootBarFill 1.6s cubic-bezier(0.4,0,0.2,1) 0.3s forwards;
-          width: 0%;
-        }
-
-        /* SCROLLBAR */
-        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(0,229,255,0.3); border-radius: 2px; }
+        ::-webkit-scrollbar-thumb { background: rgba(124,58,237,0.35); border-radius: 4px; }
 
-        /* NOISE TEXTURE */
-        .noise::after {
-          content: ''; position: absolute; inset: 0;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-          pointer-events: none; z-index: 1; opacity: 0.4;
-        }
+        /* ── BOOT ── */
+        @keyframes bIn  { from{opacity:0;} to{opacity:1;} }
+        @keyframes bOut { 0%{opacity:1;transform:scale(1);filter:blur(0);} 100%{opacity:0;transform:scale(1.04);filter:blur(10px);} }
+        .boot-in  { animation: bIn  0.35s ease forwards; }
+        .boot-out { animation: bOut 0.75s cubic-bezier(0.4,0,1,1) forwards; }
 
-        /* SCANLINES */
-        .scanlines::before {
-          content: ''; position: fixed; inset: 0;
-          background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px);
-          pointer-events: none; z-index: 9990;
-        }
+        @keyframes lineIn { from{opacity:0;transform:translateX(-8px);} to{opacity:1;transform:none;} }
+        .bl { animation: lineIn 0.18s ease forwards; }
 
-        /* GRID */
-        .hex-grid {
+        /* ── APP ── */
+        @keyframes appIn { from{opacity:0;filter:blur(6px);transform:translateY(20px);} to{opacity:1;filter:blur(0);transform:none;} }
+        .app-in { animation: appIn 1s cubic-bezier(0.16,1,0.3,1) forwards; }
+
+        /* ── HERO STAGGER ── */
+        @keyframes heroUp { from{opacity:0;transform:translateY(32px);} to{opacity:1;transform:none;} }
+        .h1 { animation: heroUp 0.8s cubic-bezier(0.16,1,0.3,1) 0.1s both; }
+        .h2 { animation: heroUp 0.8s cubic-bezier(0.16,1,0.3,1) 0.22s both; }
+        .h3 { animation: heroUp 0.8s cubic-bezier(0.16,1,0.3,1) 0.36s both; }
+        .h4 { animation: heroUp 0.8s cubic-bezier(0.16,1,0.3,1) 0.5s both; }
+        .h5 { animation: heroUp 0.8s cubic-bezier(0.16,1,0.3,1) 0.66s both; }
+
+        /* ── ORB ── */
+        @keyframes orbFloat { 0%,100%{transform:translateY(0) rotate(0deg);} 40%{transform:translateY(-18px) rotate(1deg);} 75%{transform:translateY(-8px) rotate(-0.5deg);} }
+        .orb { animation: orbFloat 7s ease-in-out infinite; will-change: transform; }
+
+        @keyframes rA { from{transform:rotateZ(0deg) rotateX(68deg);} to{transform:rotateZ(360deg) rotateX(68deg);} }
+        @keyframes rB { from{transform:rotateZ(0deg) rotateY(70deg);} to{transform:rotateZ(-360deg) rotateY(70deg);} }
+        @keyframes rC { from{transform:rotateZ(0deg) rotateX(50deg) rotateY(25deg);} to{transform:rotateZ(360deg) rotateX(50deg) rotateY(25deg);} }
+        .rA { animation: rA 9s linear infinite; will-change: transform; }
+        .rB { animation: rB 12s linear infinite; will-change: transform; }
+        .rC { animation: rC 16s linear infinite; will-change: transform; }
+
+        @keyframes glowBreath { 0%,100%{opacity:0.65;} 50%{opacity:1;} }
+        .glow-breath { animation: glowBreath 4s ease-in-out infinite; }
+
+        /* ── MSG ── */
+        @keyframes ml { from{opacity:0;transform:translateX(-8px);} to{opacity:1;transform:none;} }
+        @keytml mr { from{opacity:0;transform:translateX(8px);} to{opacity:1;transform:none;} }
+        @keyframes mr { from{opacity:0;transform:translateX(8px);} to{opacity:1;transform:none;} }
+        .ml{animation:ml 0.25s ease both;} .mr{animation:mr 0.25s ease both;}
+
+        /* ── CARD IN ── */
+        @keyframes ci { from{opacity:0;transform:translateY(10px) scale(0.97);} to{opacity:1;transform:none;} }
+        .ci { animation: ci 0.35s cubic-bezier(0.16,1,0.3,1) both; }
+
+        /* ── BAR FILL ── */
+        @keyframes fb { from{width:0%;} }
+        .fb { animation: fb 0.9s cubic-bezier(0.16,1,0.3,1) forwards; }
+
+        /* ── DOTS ── */
+        @keyframes dot { 0%,80%,100%{opacity:0.15;transform:scale(0.55);} 40%{opacity:1;transform:scale(1);} }
+        .d1{animation:dot 1.1s ease infinite 0s;} .d2{animation:dot 1.1s ease infinite 0.18s;} .d3{animation:dot 1.1s ease infinite 0.36s;}
+
+        /* ── BLINK ── */
+        @keyframes bk { 0%,100%{opacity:1;} 50%{opacity:0;} }
+        .bk { animation: bk 1s step-end infinite; }
+
+        /* ── SWEEP ── */
+        @keyframes sw { 0%{transform:translateX(-100%);} 100%{transform:translateX(100vw);} }
+        .sw { position:absolute;top:0;bottom:0;width:80px;background:linear-gradient(90deg,transparent,rgba(124,58,237,0.1),transparent);animation:sw 1.6s ease-in-out infinite;pointer-events:none;will-change:transform; }
+
+        /* ── STAR TWINKLE ── */
+        @keyframes twinkle { 0%,100%{opacity:0.15;} 50%{opacity:0.8;} }
+
+        /* ── GRID ── */
+        .grid-overlay {
           background-image:
-            linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
-          background-size: 40px 40px;
+            linear-gradient(rgba(99,102,241,0.035) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(99,102,241,0.035) 1px, transparent 1px);
+          background-size: 72px 72px;
         }
 
-        /* GLITCH */
-        @keyframes glitch1 {
-          0%,100% { clip-path: inset(0 0 95% 0); transform: translate(-3px, 0); }
-          20% { clip-path: inset(40% 0 50% 0); transform: translate(3px, 0); }
-          40% { clip-path: inset(70% 0 10% 0); transform: translate(-2px, 0); }
-          60% { clip-path: inset(20% 0 60% 0); transform: translate(2px, 0); }
-          80% { clip-path: inset(85% 0 5% 0); transform: translate(-1px, 0); }
-        }
-        @keyframes glitch2 {
-          0%,100% { clip-path: inset(80% 0 5% 0); transform: translate(3px, 0); color: #ff003c; }
-          30% { clip-path: inset(10% 0 80% 0); transform: translate(-3px, 0); }
-          60% { clip-path: inset(50% 0 30% 0); transform: translate(1px, 0); }
-        }
-        .glitch { position: relative; }
-        .glitch::before, .glitch::after {
-          content: attr(data-text); position: absolute; inset: 0;
-          font: inherit; color: inherit; letter-spacing: inherit;
-        }
-        .glitch::before { animation: glitch1 4s infinite; color: var(--cyan); opacity: 0.7; }
-        .glitch::after { animation: glitch2 4s infinite 0.1s; color: #ff003c; opacity: 0.5; }
+        /* ── HOVER ── */
+        .nav-a { transition: color 0.15s; }
+        .nav-a:hover { color: var(--w) !important; }
 
-        /* TERMINAL */
-        @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
-        .cursor-blink { animation: blink 1s step-end infinite; }
+        .pill { transition: all 0.2s ease; cursor: pointer; }
+        .pill:hover { filter: brightness(1.18); transform: translateY(-2px); }
+        .pill:active { transform: translateY(0); }
 
-        /* SCAN LINE SWEEP */
-        @keyframes sweep {
-          0% { transform: translateY(-100%); }
-          100% { transform: translateY(100vh); }
-        }
-        .sweep-line {
-          position: absolute; left: 0; right: 0; height: 2px;
-          background: linear-gradient(90deg, transparent, var(--cyan), transparent);
-          animation: sweep 2.5s linear infinite; opacity: 0.4; pointer-events: none;
-        }
+        .ghost { transition: all 0.2s ease; cursor: pointer; }
+        .ghost:hover { background: rgba(255,255,255,0.08) !important; border-color: var(--w30) !important; transform: translateY(-2px); }
 
-        /* CARDS */
-        @keyframes cardReveal {
-          from { opacity: 0; transform: translateY(20px) scale(0.96); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        .card-reveal { animation: cardReveal 0.5s cubic-bezier(0.16,1,0.3,1) forwards; }
+        .ex-row { transition: all 0.18s ease; cursor: pointer; }
+        .ex-row:hover { background: rgba(124,58,237,0.1) !important; border-color: rgba(124,58,237,0.4) !important; transform: translateX(4px); }
 
-        /* MESSAGE APPEAR */
-        @keyframes msgIn {
-          from { opacity: 0; transform: translateX(-16px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-        .msg-in { animation: msgIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards; }
+        .feat { transition: all 0.22s ease; }
+        .feat:hover { border-color: rgba(124,58,237,0.3) !important; transform: translateY(-5px); box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 30px rgba(124,58,237,0.08) !important; }
 
-        @keyframes userMsgIn {
-          from { opacity: 0; transform: translateX(16px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-        .user-msg-in { animation: userMsgIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards; }
+        .rcard { transition: transform 0.2s ease; will-change: transform; }
+        .rcard:hover { transform: translateY(-4px); }
 
-        /* PULSE BORDER */
-        @keyframes borderPulse {
-          0%,100% { box-shadow: 0 0 0 0 rgba(0,229,255,0.4), inset 0 0 30px rgba(0,229,255,0.02); }
-          50% { box-shadow: 0 0 30px rgba(0,229,255,0.15), inset 0 0 30px rgba(0,229,255,0.04); }
-        }
-        .border-pulse { animation: borderPulse 3s ease infinite; }
+        .fbtn { transition: all 0.18s ease; cursor: pointer; }
+        .fbtn:hover:not(:disabled) { filter: brightness(1.2); transform: translateY(-1px); box-shadow: 0 0 30px var(--glow) !important; }
 
-        /* LOADING DOTS */
-        @keyframes loadDot {
-          0%,80%,100% { transform: scale(0.6); opacity: 0.3; }
-          40% { transform: scale(1); opacity: 1; }
-        }
-        .load-dot:nth-child(1) { animation: loadDot 1.2s ease infinite 0s; }
-        .load-dot:nth-child(2) { animation: loadDot 1.2s ease infinite 0.2s; }
-        .load-dot:nth-child(3) { animation: loadDot 1.2s ease infinite 0.4s; }
+        .inp:focus { outline: none; border-color: rgba(124,58,237,0.5) !important; box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
+        .inp::placeholder { color: var(--w30); }
 
-        /* HERO BIG TEXT */
-        @keyframes float {
-          0%,100% { transform: translateY(0); }
-          50% { transform: translateY(-12px); }
-        }
+        @keyframes betaBorder { 0%,100%{border-color:rgba(255,69,58,0.15);} 50%{border-color:rgba(255,69,58,0.45);} }
+        .betab { animation: betaBorder 2.5s ease infinite; }
 
-        /* DATA STREAM */
-        @keyframes stream {
-          0% { transform: translateY(0); opacity: 0.6; }
-          100% { transform: translateY(-100%); opacity: 0; }
-        }
+        @keyframes badgeFloat { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-5px);} }
+        .bfloat { animation: badgeFloat 3.5s ease-in-out infinite; }
 
-        /* ORBIT */
-        @keyframes orbit {
-          from { transform: rotate(0deg) translateX(120px) rotate(0deg); }
-          to { transform: rotate(360deg) translateX(120px) rotate(-360deg); }
-        }
-
-        @keyframes orbitReverse {
-          from { transform: rotate(0deg) translateX(80px) rotate(0deg); }
-          to { transform: rotate(-360deg) translateX(80px) rotate(360deg); }
-        }
-
-        /* RISK METER */
-        @keyframes fillBar {
-          from { width: 0%; }
-        }
-        .fill-bar { animation: fillBar 1s cubic-bezier(0.16,1,0.3,1) forwards; }
-
-        /* HEX NODES */
-        @keyframes hexPulse {
-          0%,100% { opacity: 0.2; transform: scale(1); }
-          50% { opacity: 0.6; transform: scale(1.1); }
-        }
-
-        /* INPUT GLOW */
-        .input-glow:focus {
-          box-shadow: 0 0 20px rgba(0,229,255,0.12), inset 0 0 20px rgba(0,229,255,0.02);
-          outline: none !important;
-          border-color: rgba(0,229,255,0.5) !important;
-        }
-
-        /* NAV LINK */
-        .nav-link { position: relative; }
-        .nav-link::after {
-          content: ''; position: absolute; bottom: -4px; left: 0; right: 0; height: 1px;
-          background: var(--cyan); transform: scaleX(0); transition: transform 0.3s ease;
-          transform-origin: left;
-        }
-        .nav-link:hover::after { transform: scaleX(1); }
-
-        /* SECTION TRANSITIONS */
-        .section-fade { opacity: 0; transform: translateY(30px); transition: opacity 0.8s ease, transform 0.8s ease; }
-        .section-fade.visible { opacity: 1; transform: translateY(0); }
+        /* gradient text */
+        .grad { background: linear-gradient(135deg, var(--p2), var(--p3), var(--p4)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
       `}</style>
 
-      {/* CUSTOM CURSOR — arrow pointer SVG */}
-      <svg className="cursor-pointer" style={{ left: mousePos.x, top: mousePos.y, transition: "left 0.06s ease, top 0.06s ease" }} viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M2 2L9 18L11.5 12L18 9.5L2 2Z" fill="#00e5ff" fillOpacity="0.95" stroke="#00e5ff" strokeWidth="0.5"/>
-        <path d="M11.5 12L18 18" stroke="#00e5ff" strokeWidth="1.5" strokeLinecap="round"/>
-      </svg>
-
-      {/* SCANLINES OVERLAY */}
-      <div className="scanlines" />
-
-      {/* ── PHASE 1: LOADING SCREEN ── */}
-      {bootPhase === "loading" && (
-        <div style={{
-          position: "fixed", inset: 0, background: "var(--bg)",
-          display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center",
-          zIndex: 9999, gap: 0,
-          transition: "opacity 0.6s ease",
-        }}>
-          {/* Big AURA logo */}
-          <div style={{
-            fontFamily: "var(--display)",
-            fontSize: "clamp(60px, 14vw, 140px)",
-            color: "var(--cyan)",
-            letterSpacing: 20,
-            textShadow: "0 0 60px rgba(0,229,255,0.4), 0 0 120px rgba(0,229,255,0.15)",
-            lineHeight: 1, marginBottom: 8,
-            animation: "bootLogoIn 0.8s cubic-bezier(0.16,1,0.3,1) forwards"
-          }}>
-            AURA
-          </div>
-          <div style={{
-            fontFamily: "var(--mono)", fontSize: 11, letterSpacing: 6,
-            color: "rgba(0,229,255,0.35)", marginBottom: 56,
-            animation: "bootSubIn 1.2s ease forwards"
-          }}>
-            AUTOMATED URBAN RISK ANALYTICS
-          </div>
-          {/* Loading bar */}
-          <div style={{ width: "clamp(240px,28vw,380px)", animation: "bootSubIn 1.2s ease forwards" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "var(--mono)", fontSize: 12, letterSpacing: 3, color: "rgba(0,229,255,0.3)", marginBottom: 10 }}>
-              <span>INITIALIZING</span>
-              <span style={{ color: "var(--cyan)" }}>{Math.round(loadPct)}%</span>
-            </div>
-            <div style={{ height: 3, background: "rgba(0,229,255,0.08)", borderRadius: 2, overflow: "hidden" }}>
-              <div style={{
-                height: "100%", width: `${loadPct}%`,
-                background: "linear-gradient(90deg, rgba(0,229,255,0.4), var(--cyan))",
-                boxShadow: "0 0 12px var(--cyan)",
-                borderRadius: 2, transition: "width 0.12s ease"
-              }} />
-            </div>
-            <div style={{ marginTop: 16, fontFamily: "var(--mono)", fontSize: 11, letterSpacing: 2, color: "rgba(0,229,255,0.2)", height: 14 }}>
-              {loadPct < 30 && "CONNECTING TO DATABRICKS CLUSTER..."}
-              {loadPct >= 30 && loadPct < 60 && "INDEXING GROCERY_SAFETY_INDEX TABLE..."}
-              {loadPct >= 60 && loadPct < 85 && "LOADING GPT-4o-mini ENGINE..."}
-              {loadPct >= 85 && loadPct < 100 && "ACTIVATING FAILSAFE PROTOCOLS..."}
-              {loadPct >= 100 && <span style={{ color: "#00ff88" }}>ALL SYSTEMS NOMINAL ✓</span>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── PHASE 2: HERO OVERLAY (sits on top of main content, then fades away) ── */}
-      {bootPhase === "hero" && (
-        <div id="hero-overlay" style={{
+      {/* ══════════════════════════════════
+          BOOT SCREEN
+      ══════════════════════════════════ */}
+      {(phase === "boot" || phase === "exit") && (
+        <div className={phase === "exit" ? "boot-out" : "boot-in"} style={{
           position: "fixed", inset: 0,
           background: "var(--bg)",
-          zIndex: 9998,
-          display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center",
-          textAlign: "center", padding: "0 40px",
-          animation: "heroOverlayIn 0.5s ease forwards",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 9999, overflow: "hidden",
         }}>
-          <style>{`
-            @keyframes heroOverlayIn { from { opacity:0; } to { opacity:1; } }
-            @keyframes heroOverlayOut { from { opacity:1; transform:scale(1); } to { opacity:0; transform:scale(1.02); } }
-            #hero-overlay.out { animation: heroOverlayOut 0.55s ease forwards !important; }
-          `}</style>
-          <div style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: 4, color: "rgba(0,229,255,0.5)", marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 32, height: 1, background: "rgba(0,229,255,0.3)" }} />
-            CLASSIFIED // URBAN INTELLIGENCE PLATFORM
-            <div style={{ width: 32, height: 1, background: "rgba(0,229,255,0.3)" }} />
-          </div>
+          {/* Ambient glow behind terminal */}
+          <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 600, height: 400, background: "radial-gradient(ellipse, rgba(124,58,237,0.15) 0%, transparent 70%)", pointerEvents: "none" }}/>
+
           <div style={{
-            fontFamily: "var(--display)",
-            fontSize: "clamp(72px,15vw,180px)",
-            color: "#fff", letterSpacing: 16, lineHeight: 0.9,
-            textShadow: "0 0 80px rgba(0,229,255,0.25)",
-            marginBottom: 12
-          }}>AURA</div>
-          <div style={{ fontFamily: "var(--display)", fontSize: "clamp(12px,2.5vw,24px)", letterSpacing: 10, color: "rgba(255,255,255,0.2)", marginBottom: 40 }}>
-            AUTOMATED URBAN RISK ANALYTICS
+            width: "min(580px,90vw)",
+            background: "rgba(10,12,24,0.97)",
+            border: "1px solid rgba(124,58,237,0.2)",
+            borderRadius: 18,
+            overflow: "hidden",
+            boxShadow: "0 0 80px rgba(124,58,237,0.12), 0 40px 100px rgba(0,0,0,0.85)",
+          }}>
+            {/* Window chrome */}
+            <div style={{ padding: "13px 20px", background: "rgba(255,255,255,0.025)", borderBottom: "1px solid rgba(124,58,237,0.12)", display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ display: "flex", gap: 7 }}>
+                {["#ff5f57","#febc2e","#28c840"].map((c,i)=><div key={i} style={{width:11,height:11,borderRadius:"50%",background:c,opacity:0.85}}/>)}
+              </div>
+              <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--w30)", letterSpacing: 1 }}>aura — system init</span>
+              <div style={{ marginLeft: "auto", width: 5, height: 5, borderRadius: "50%", background: "#30d158", boxShadow: "0 0 6px #30d158" }}/>
+            </div>
+
+            {/* Boot lines */}
+            <div style={{ padding: "22px 24px", minHeight: 230 }}>
+              {BOOT_LINES.slice(0, bootLine).map((line, i) => (
+                <div key={i} className="bl" style={{
+                  fontFamily: "var(--mono)", fontSize: 12, lineHeight: 1.9, letterSpacing: 0.3,
+                  color: line.c === "ok" ? "#30d158" : line.c === "lc" ? "var(--p3)" : "var(--w55)",
+                  display: "flex", alignItems: "center", gap: 8,
+                }}>
+                  {line.t}
+                  {i === bootLine - 1 && <span className="bk" style={{ color: "var(--p2)" }}>█</span>}
+                </div>
+              ))}
+            </div>
+
+            {/* Progress bar */}
+            <div style={{ padding: "0 24px 20px" }}>
+              <div style={{ height: 2, background: "rgba(255,255,255,0.05)", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{
+                  height: "100%", width: `${(bootLine / BOOT_LINES.length) * 100}%`,
+                  background: "linear-gradient(90deg, var(--ind), var(--p), var(--p3))",
+                  borderRadius: 2, transition: "width 0.2s ease",
+                  boxShadow: "0 0 8px var(--glow)",
+                }}/>
+              </div>
+            </div>
           </div>
-          <p style={{ maxWidth: 520, color: "rgba(255,255,255,0.35)", fontSize: 19, lineHeight: 1.8, fontWeight: 300, marginBottom: 48, fontFamily: "var(--body)" }}>
-            Natural language to Databricks SQL. Real-time crime vectors, population density, and risk indexing across urban corridors.
-          </p>
-          <button
-            onClick={() => {
-              const overlay = document.getElementById("hero-overlay");
-              if (overlay) {
-                overlay.classList.add("out");
-                setTimeout(() => setBootPhase("done"), 560);
-              } else {
-                setBootPhase("done");
-              }
-            }}
-            style={{
-              padding: "18px 56px", borderRadius: 4,
-              border: "1.5px solid var(--cyan)",
-              background: "rgba(0,229,255,0.06)",
-              fontFamily: "var(--mono)", fontSize: 13, letterSpacing: 5,
-              color: "var(--cyan)", transition: "all 0.3s ease",
-              display: "inline-flex", alignItems: "center", gap: 16
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = "var(--cyan)"; e.currentTarget.style.color = "#000"; e.currentTarget.style.boxShadow = "0 0 40px rgba(0,229,255,0.35)"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "rgba(0,229,255,0.06)"; e.currentTarget.style.color = "var(--cyan)"; e.currentTarget.style.boxShadow = "none"; }}
-          >
-            INITIALIZE TERMINAL
-            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </button>
         </div>
       )}
 
-      <div className="noise hex-grid" style={{
-        minHeight: "100vh", background: "var(--bg)", color: "#e0e8f0",
-        fontFamily: "var(--body)", overflowX: "hidden", position: "relative",
-        opacity: bootPhase === "done" ? 1 : 0,
-        transition: "opacity 0.5s ease",
-        pointerEvents: bootPhase === "done" ? "auto" : "none"
-      }}>
+      {/* ══════════════════════════════════
+          MAIN APP
+      ══════════════════════════════════ */}
+      {phase === "app" && (
+        <div ref={appRef} className="app-in" style={{ minHeight: "100vh", position: "relative" }}>
 
-        {/* AMBIENT ORBS */}
-        <div style={{
-          position: "fixed", top: "10%", left: "-10%", width: 600, height: 600,
-          background: "radial-gradient(circle, rgba(0,229,255,0.06) 0%, transparent 70%)",
-          borderRadius: "50%", pointerEvents: "none", zIndex: 0
-        }} />
-        <div style={{
-          position: "fixed", bottom: "5%", right: "-15%", width: 800, height: 800,
-          background: "radial-gradient(circle, rgba(255,59,59,0.04) 0%, transparent 70%)",
-          borderRadius: "50%", pointerEvents: "none", zIndex: 0
-        }} />
+          {/* ── FIXED BACKGROUNDS ── */}
+          <div className="grid-overlay" style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}/>
+          {/* Deep navy nebula blobs */}
+          <div style={{ position: "fixed", top: "-15%", left: "50%", transform: "translateX(-50%)", width: 1100, height: 700, background: "radial-gradient(ellipse, rgba(99,102,241,0.1) 0%, rgba(124,58,237,0.06) 40%, transparent 70%)", pointerEvents: "none", zIndex: 0 }}/>
+          <div style={{ position: "fixed", bottom: "-5%", right: "-8%", width: 700, height: 700, background: "radial-gradient(circle, rgba(79,70,229,0.08) 0%, transparent 65%)", pointerEvents: "none", zIndex: 0 }}/>
+          <div style={{ position: "fixed", top: "40%", left: "-5%", width: 500, height: 500, background: "radial-gradient(circle, rgba(124,58,237,0.05) 0%, transparent 65%)", pointerEvents: "none", zIndex: 0 }}/>
+          {/* Stars */}
+          {[[8,15],[22,68],[36,24],[54,85],[70,38],[84,14],[93,60],[14,46],[62,8],[44,74],[78,52],[30,90]].map(([x,y],i)=>(
+            <div key={i} style={{ position:"fixed", left:`${x}%`, top:`${y}%`, width:i%4===0?2:1, height:i%4===0?2:1, borderRadius:"50%", background:"rgba(255,255,255,0.55)", animation:`twinkle ${2.5+i*0.35}s ease-in-out ${i*0.28}s infinite`, pointerEvents:"none", zIndex:0 }}/>
+          ))}
 
-        {/* ═══════════════════════════════ NAV ═══════════════════════════════ */}
-        <nav style={{
-          position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
-          background: "rgba(2,4,8,0.85)", backdropFilter: "blur(20px)",
-          borderBottom: "2px solid var(--border)", padding: "0 40px",
-          height: 64, display: "flex", alignItems: "center", justifyContent: "space-between"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          {/* ── NAV ── */}
+          <nav style={{
+            position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
+            background: "rgba(6,7,15,0.8)", backdropFilter: "blur(24px) saturate(180%)",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            height: 62, display: "flex", alignItems: "center",
+            padding: "0 44px", justifyContent: "space-between",
+          }}>
             {/* Logo */}
-            <div style={{
-              fontFamily: "var(--display)", fontSize: 28, letterSpacing: 6,
-              color: "var(--cyan)", textShadow: "0 0 20px rgba(0,229,255,0.5)"
-            }}>AURA</div>
-            <div style={{
-              fontFamily: "var(--mono)", fontSize: 10, color: "rgba(0,229,255,0.4)",
-              borderLeft: "1px solid var(--border)", paddingLeft: 16, lineHeight: 1.5
-            }}>
-              <div>AUTOMATED URBAN</div>
-              <div>RISK ANALYTICS</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: 9,
+                background: "linear-gradient(135deg, var(--p), var(--p3))",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 15, fontWeight: 800,
+                boxShadow: "0 0 16px var(--glow2), 0 2px 8px rgba(0,0,0,0.4)",
+              }}>A</div>
+              <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: -0.3, color: "var(--w)" }}>AURA</span>
             </div>
-          </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
-            {["HOME", "TERMINAL", "SYSTEM"].map((item, i) => (
-              <a key={item} href={["#hero","#agent","#about"][i]}
-                className="nav-link"
-                style={{ fontFamily: "var(--mono)", fontSize: 13, letterSpacing: 3, color: "rgba(255,255,255,0.5)", textDecoration: "none", transition: "color 0.2s" }}
-                onMouseEnter={e => (e.currentTarget.style.color = "var(--cyan)")}
-                onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.5)")}
-              >
-                {item}
+            {/* Links */}
+            <div style={{ display: "flex", gap: 32, position: "absolute", left: "50%", transform: "translateX(-50%)" }}>
+              {[["How It Works","#guide"],["Terminal","#terminal"],["System","#system"],["Beta","#beta"]].map(([l,h])=>(
+                <a key={l} href={h} className="nav-a" style={{ fontSize: 14, fontWeight: 500, color: "var(--w55)", textDecoration: "none" }}>{l}</a>
+              ))}
+            </div>
+
+            {/* Right side */}
+            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#30d158", boxShadow: "0 0 8px #30d158" }}/>
+                <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "#30d158", letterSpacing: 2 }}>LIVE</span>
+              </div>
+              <a href="#terminal" style={{ textDecoration: "none" }}>
+                <div className="pill" style={{
+                  padding: "9px 24px", borderRadius: 100,
+                  background: "linear-gradient(135deg, var(--ind), var(--p), var(--p2))",
+                  color: "var(--w)", fontSize: 14, fontWeight: 700,
+                  boxShadow: "0 0 22px var(--glow2), 0 4px 16px rgba(0,0,0,0.4)",
+                }}>Get Started</div>
               </a>
-            ))}
-            {/* Status badge */}
-            <div style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "6px 14px", borderRadius: 4,
-              border: "2px solid rgba(0,229,255,0.2)",
-              background: "rgba(0,229,255,0.05)"
-            }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#00ff88", boxShadow: "0 0 8px #00ff88" }} />
-              <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "#00ff88", letterSpacing: 2 }}>LIVE</span>
             </div>
-          </div>
-        </nav>
+          </nav>
 
-        {/* ═══════════════════════════════ HERO ═══════════════════════════════ */}
-        <section id="hero" style={{
-          minHeight: "100vh", display: "flex", flexDirection: "column",
-          justifyContent: "center", alignItems: "center", textAlign: "center",
-          padding: "100px 40px 60px", position: "relative", zIndex: 10
-        }}>
-          {/* Orbital rings */}
-          <div style={{
-            position: "absolute", width: 500, height: 500,
-            border: "1px solid rgba(0,229,255,0.08)", borderRadius: "50%",
-            top: "50%", left: "50%", transform: "translate(-50%,-50%)"
-          }}>
-            <div style={{
-              position: "absolute", top: "50%", left: "50%",
-              width: 8, height: 8, borderRadius: "50%",
-              background: "var(--cyan)", boxShadow: "0 0 12px var(--cyan)",
-              animation: "orbit 8s linear infinite",
-              transformOrigin: "0 0"
-            }} />
-          </div>
-          <div style={{
-            position: "absolute", width: 340, height: 340,
-            border: "1px solid rgba(255,59,59,0.06)", borderRadius: "50%",
-            top: "50%", left: "50%", transform: "translate(-50%,-50%)"
-          }}>
-            <div style={{
-              position: "absolute", top: "50%", left: "50%",
-              width: 5, height: 5, borderRadius: "50%",
-              background: "var(--red)", boxShadow: "0 0 8px var(--red)",
-              animation: "orbitReverse 5s linear infinite",
-              transformOrigin: "0 0"
-            }} />
-          </div>
+          {/* ══════ HERO ══════ */}
+          <section style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "80px 40px 60px", position: "relative", zIndex: 2, overflow: "hidden" }}>
 
-          {/* Tag */}
-          <div style={{
-            fontFamily: "var(--mono)", fontSize: 11, letterSpacing: 4,
-            color: "rgba(0,229,255,0.6)", marginBottom: 24,
-            display: "flex", alignItems: "center", gap: 12
-          }}>
-            <div style={{ width: 40, height: 1, background: "var(--cyan)", opacity: 0.4 }} />
-            CLASSIFIED // URBAN INTELLIGENCE PLATFORM
-            <div style={{ width: 40, height: 1, background: "var(--cyan)", opacity: 0.4 }} />
-          </div>
-
-          {/* Main heading */}
-          <h1 className="glitch" data-text="AURA" style={{
-            fontFamily: "var(--display)",
-            fontSize: "clamp(80px, 18vw, 220px)",
-            letterSpacing: 20, lineHeight: 0.9,
-            color: "#fff",
-            textShadow: "0 0 80px rgba(0,229,255,0.3)",
-            marginBottom: 8, userSelect: "none"
-          }}>
-            AURA
-          </h1>
-
-          <div style={{
-            fontFamily: "var(--display)", fontSize: "clamp(14px, 3vw, 32px)",
-            letterSpacing: 12, color: "rgba(255,255,255,0.25)", marginBottom: 40
-          }}>
-            AUTOMATED URBAN RISK ANALYTICS
-          </div>
-
-          <p style={{
-            maxWidth: 560, color: "rgba(255,255,255,0.4)", fontSize: 19,
-            lineHeight: 1.8, fontWeight: 300, marginBottom: 56,
-            fontFamily: "var(--body)"
-          }}>
-            Natural language to Databricks SQL. Real-time crime vectors, population density, and risk indexing across urban corridors — all from a single query.
-          </p>
-
-          {/* CTA */}
-          <a href="#agent" style={{ textDecoration: "none" }}>
-            <div style={{
-              position: "relative", overflow: "hidden",
-              padding: "16px 48px", borderRadius: 4,
-              border: "1px solid var(--cyan)",
-              background: "rgba(0,229,255,0.05)",
-              fontFamily: "var(--mono)", fontSize: 12, letterSpacing: 4,
-              color: "var(--cyan)", transition: "all 0.3s ease",
-              display: "inline-flex", alignItems: "center", gap: 16
-            }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLDivElement).style.background = "var(--cyan)";
-                (e.currentTarget as HTMLDivElement).style.color = "#000";
-                (e.currentTarget as HTMLDivElement).style.boxShadow = "0 0 40px rgba(0,229,255,0.4)";
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLDivElement).style.background = "rgba(0,229,255,0.05)";
-                (e.currentTarget as HTMLDivElement).style.color = "var(--cyan)";
-                (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
-              }}
-            >
-              INITIALIZE TERMINAL
-              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M5 12h14M12 5l7 7-7 7" />
-              </svg>
+            {/* 3D ORB */}
+            <div className="orb" style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 560, height: 560, zIndex: 0 }}>
+              {/* Outer nebula glow */}
+              <div className="glow-breath" style={{ position: "absolute", inset: -100, borderRadius: "50%", background: "radial-gradient(circle, rgba(99,102,241,0.18) 0%, rgba(124,58,237,0.1) 40%, transparent 70%)" }}/>
+              {/* Main sphere */}
+              <div style={{
+                position: "absolute", inset: 0, borderRadius: "50%",
+                background: "radial-gradient(circle at 38% 32%, rgba(167,139,250,0.45) 0%, rgba(124,58,237,0.3) 30%, rgba(79,70,229,0.2) 55%, rgba(49,46,129,0.1) 75%, transparent 90%)",
+                boxShadow: "0 0 80px rgba(99,102,241,0.35), 0 0 160px rgba(124,58,237,0.15), inset 0 0 80px rgba(99,102,241,0.12)",
+              }}/>
+              {/* Specular */}
+              <div style={{ position: "absolute", top: "22%", left: "28%", width: "20%", height: "20%", borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.5) 0%, rgba(196,132,252,0.25) 50%, transparent 100%)", filter: "blur(10px)" }}/>
+              {/* Rings */}
+              <div className="rA" style={{ position: "absolute", inset: "6%", border: "1px solid rgba(139,92,246,0.2)", borderRadius: "50%", boxShadow: "0 0 14px rgba(124,58,237,0.15)" }}/>
+              <div className="rB" style={{ position: "absolute", inset: "16%", border: "1px solid rgba(167,139,250,0.18)", borderRadius: "50%" }}/>
+              <div className="rC" style={{ position: "absolute", inset: "28%", border: "1.5px solid rgba(139,92,246,0.28)", borderRadius: "50%", boxShadow: "0 0 18px rgba(124,58,237,0.22)" }}/>
+              {/* Equator shine */}
+              <div style={{ position: "absolute", top: "47%", inset: "8%", height: "6%", background: "linear-gradient(90deg,transparent,rgba(139,92,246,0.18),rgba(167,139,250,0.28),rgba(139,92,246,0.18),transparent)", filter: "blur(5px)" }}/>
+              {/* Bottom shadow */}
+              <div style={{ position: "absolute", bottom: -30, left: "20%", right: "20%", height: 40, background: "radial-gradient(ellipse, rgba(99,102,241,0.25) 0%, transparent 70%)", filter: "blur(12px)" }}/>
             </div>
-          </a>
 
-          {/* Stats row */}
-          <div style={{
-            position: "absolute", bottom: 48, left: "50%", transform: "translateX(-50%)",
-            display: "flex", gap: 60, fontFamily: "var(--mono)"
-          }}>
-            {[
-              { val: "847K", label: "RECORDS INDEXED" },
-              { val: "18ms", label: "AVG LATENCY" },
-              { val: "99.9%", label: "UPTIME" },
-            ].map(s => (
-              <div key={s.label} style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 22, fontFamily: "var(--display)", color: "var(--cyan)", letterSpacing: 4 }}>{s.val}</div>
-                <div style={{ fontSize: 9, letterSpacing: 3, color: "rgba(255,255,255,0.25)", marginTop: 4 }}>{s.label}</div>
+            {/* Hero text — above orb */}
+            <div style={{ position: "relative", zIndex: 2 }}>
+              <div className="h1 bfloat" style={{
+                display: "inline-flex", alignItems: "center", gap: 8,
+                padding: "6px 18px", borderRadius: 100,
+                background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)",
+                fontSize: 13, color: "var(--w55)", marginBottom: 36, backdropFilter: "blur(8px)",
+              }}>
+                <div style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--p3)", boxShadow: "0 0 8px var(--p2)" }}/>
+                Urban risk intelligence · plain English · 847K+ records
               </div>
-            ))}
-          </div>
-        </section>
 
-        {/* ═══════════════════════════════ TERMINAL ═══════════════════════════════ */}
-        <section id="agent" style={{
-          minHeight: "100vh", padding: "80px 24px",
-          display: "flex", flexDirection: "column", alignItems: "center",
-          position: "relative", zIndex: 10
-        }}>
+              <h1 className="h2" style={{ fontWeight: 900, fontSize: "clamp(44px,7.5vw,92px)", lineHeight: 1.03, letterSpacing: -3, color: "var(--w)", marginBottom: 8 }}>
+                The Smartest Way To
+              </h1>
+              <h1 className="h2" style={{ fontWeight: 900, fontSize: "clamp(44px,7.5vw,92px)", lineHeight: 1.03, letterSpacing: -3, marginBottom: 30 }}>
+                Query{" "}
+                <span className="grad" style={{ filter: "drop-shadow(0 0 24px rgba(139,92,246,0.5))" }}>Urban Risk.</span>
+              </h1>
 
-          {/* Section label */}
-          <div style={{ marginBottom: 32, textAlign: "center" }}>
-            <div style={{ fontFamily: "var(--mono)", fontSize: 10, letterSpacing: 4, color: "rgba(0,229,255,0.4)", marginBottom: 12 }}>
-              // INTELLIGENCE TERMINAL
-            </div>
-            <div style={{ fontFamily: "var(--display)", fontSize: "clamp(36px,6vw,72px)", letterSpacing: 8, color: "#fff" }}>
-              QUERY <span style={{ color: "var(--cyan)" }}>ENGINE</span>
-            </div>
-          </div>
+              <p className="h3" style={{ fontSize: 18, lineHeight: 1.75, color: "var(--w55)", maxWidth: 480, margin: "0 auto 44px" }}>
+                Ask anything in plain English. AURA converts it into precision Databricks queries — returning live crime, population, and safety intelligence instantly.
+              </p>
 
-          {/* TERMINAL WINDOW */}
-          <div className="border-pulse" style={{
-            width: "100%", maxWidth: 1080, height: "78vh",
-            background: "var(--surface)",
-            border: "2px solid rgba(0,229,255,0.2)",
-            borderRadius: 8, overflow: "hidden",
-            display: "flex", flexDirection: "column",
-            position: "relative", boxShadow: "0 0 80px rgba(0,0,0,0.8), 0 0 1px rgba(0,229,255,0.3)"
-          }}>
+              <div className="h4" style={{ display: "flex", gap: 12, justifyContent: "center", marginBottom: 80 }}>
+                <a href="#terminal" style={{ textDecoration: "none" }}>
+                  <div className="pill" style={{
+                    padding: "15px 40px", borderRadius: 100,
+                    background: "linear-gradient(135deg, var(--ind), var(--p), var(--p2))",
+                    color: "var(--w)", fontSize: 16, fontWeight: 700,
+                    boxShadow: "0 0 40px var(--glow), 0 0 80px rgba(124,58,237,0.2), 0 8px 32px rgba(0,0,0,0.5)",
+                    display: "inline-flex", alignItems: "center", gap: 10,
+                  }}>
+                    Get Started
+                    <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                  </div>
+                </a>
+                <a href="#guide" style={{ textDecoration: "none" }}>
+                  <div className="ghost" style={{ padding: "15px 36px", borderRadius: 100, background: "rgba(255,255,255,0.04)", border: "1px solid var(--b2)", color: "var(--w80)", fontSize: 16, fontWeight: 500 }}>
+                    Learn More
+                  </div>
+                </a>
+              </div>
 
-            {/* Sweep line when loading */}
-            {loading && <div className="sweep-line" />}
-
-            {/* Terminal header */}
-            <div style={{
-              background: "rgba(0,0,0,0.6)", borderBottom: "1px solid rgba(0,229,255,0.1)",
-              padding: "12px 20px", display: "flex", alignItems: "center",
-              justifyContent: "space-between", flexShrink: 0
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {["#ff5f57","#febc2e","#28c840"].map((c, i) => (
-                    <div key={i} style={{ width: 12, height: 12, borderRadius: "50%", background: c, opacity: 0.9 }} />
+              {/* Hero preview card */}
+              <div className="h5" style={{
+                width: "100%", maxWidth: 820, margin: "0 auto",
+                background: "rgba(9,9,26,0.88)", backdropFilter: "blur(24px)",
+                border: "1px solid rgba(99,102,241,0.18)", borderRadius: 20,
+                boxShadow: "0 0 0 1px rgba(124,58,237,0.06), 0 40px 100px rgba(0,0,0,0.75), 0 0 60px rgba(99,102,241,0.08)",
+              }}>
+                {/* Chrome */}
+                <div style={{ padding: "13px 18px", borderBottom: "1px solid var(--b)", background: "rgba(255,255,255,0.02)", borderRadius: "20px 20px 0 0", display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {["#ff5f57","#febc2e","#28c840"].map((c,i)=><div key={i} style={{width:11,height:11,borderRadius:"50%",background:c}}/>)}
+                  </div>
+                  {["Terminal","How It Works","System"].map((t,i)=>(
+                    <div key={t} style={{ padding:"5px 14px", borderRadius:8, background:i===0?"var(--bg4)":"transparent", border:`1px solid ${i===0?"var(--b2)":"transparent"}`, fontFamily:"var(--mono)", fontSize:11, color:i===0?"var(--w)":"var(--w30)" }}>{t}</div>
                   ))}
+                  <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:5 }}>
+                    <div style={{ width:5, height:5, borderRadius:"50%", background:"#30d158", boxShadow:"0 0 5px #30d158" }}/>
+                    <span style={{ fontFamily:"var(--mono)", fontSize:9, color:"#30d158", letterSpacing:1 }}>LIVE</span>
+                  </div>
                 </div>
-                <div style={{ fontFamily: "var(--mono)", fontSize: 13, color: "rgba(255,255,255,0.3)", letterSpacing: 2 }}>
-                  aura@urban-ai:~$ risk_query
+                {/* Content */}
+                <div style={{ padding: "22px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div style={{ display:"flex", justifyContent:"flex-end" }}>
+                    <div style={{ padding:"10px 16px", borderRadius:"14px 14px 4px 14px", background:"rgba(124,58,237,0.13)", border:"1px solid rgba(124,58,237,0.22)", fontFamily:"var(--mono)", fontSize:13, color:"var(--w)", maxWidth:"70%", lineHeight:1.55, textAlign:"left" }}>
+                      <div style={{ fontSize:8, letterSpacing:3, color:"var(--p3)", marginBottom:5, opacity:0.7 }}>QUERY</div>
+                      Which grocery stores are in the most dangerous ZIP codes?
+                    </div>
+                  </div>
+                  <div style={{ padding:"10px 16px", borderRadius:"4px 14px 14px 14px", background:"var(--bg4)", border:"1px solid var(--b)", borderLeft:"2px solid var(--p2)", fontFamily:"var(--mono)", fontSize:12, color:"var(--w55)", lineHeight:1.8, maxWidth:"76%", textAlign:"left" }}>
+                    <div style={{ fontSize:8, letterSpacing:3, color:"rgba(167,139,250,0.5)", marginBottom:6 }}>ANALYST REPORT</div>
+                    Found 5 stores in high-risk zones. ZIP 85031 leads with a risk index of 87 — 2,340 total crimes against a population of 28,450...
+                  </div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    {[{n:"Walmart",z:"85031",s:87,c:"#ff453a"},{n:"Food City",z:"85019",s:64,c:"#ff9f0a"},{n:"Fry's Food",z:"85009",s:51,c:"#ff9f0a"}].map(s=>(
+                      <div key={s.z} style={{ flex:1, padding:"12px 14px", background:`${s.c}0d`, border:`1px solid ${s.c}22`, borderRadius:12, textAlign:"left" }}>
+                        <div style={{ fontFamily:"var(--mono)", fontSize:8, color:s.c, letterSpacing:1, marginBottom:5 }}>● {s.s>=50?"CRITICAL":"ELEVATED"}</div>
+                        <div style={{ fontSize:11, fontWeight:600, color:"var(--w)", marginBottom:2 }}>{s.n}</div>
+                        <div style={{ fontFamily:"var(--mono)", fontSize:9, color:"var(--w30)" }}>ZIP {s.z}</div>
+                        <div style={{ marginTop:8, height:2, background:"rgba(255,255,255,0.05)", borderRadius:1 }}>
+                          <div style={{ height:"100%", width:`${s.s}%`, background:s.c, borderRadius:1 }}/>
+                        </div>
+                        <div style={{ marginTop:3, fontFamily:"var(--mono)", fontSize:11, color:s.c, textAlign:"right", fontWeight:700 }}>{s.s}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 16, fontFamily: "var(--mono)", fontSize: 10 }}>
-                <span style={{ color: "rgba(0,229,255,0.4)", letterSpacing: 2 }}>
-                  {loading ? (
-                    <span style={{ color: "var(--gold)" }}>PROCESSING<span className="cursor-blink">_</span></span>
-                  ) : (
-                    <span style={{ color: "#00ff88" }}>READY<span className="cursor-blink">_</span></span>
-                  )}
+            </div>
+          </section>
+
+          {/* ══════ HOW IT WORKS ══════ */}
+          <section id="guide" style={{ padding: "130px 44px", maxWidth: 1100, margin: "0 auto", position: "relative", zIndex: 2 }}>
+            {/* Scroll-reveal */}
+            <div style={{ ...reveal(300, 150), transition: "opacity 0.5s ease, transform 0.5s ease", textAlign: "center", marginBottom: 64 }}>
+              <div style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"5px 16px", borderRadius:100, background:"rgba(124,58,237,0.09)", border:"1px solid rgba(124,58,237,0.22)", fontFamily:"var(--mono)", fontSize:10, color:"var(--p3)", letterSpacing:2, marginBottom:18 }}>◈ HOW IT WORKS</div>
+              <h2 style={{ fontWeight:800, fontSize:"clamp(34px,4.5vw,60px)", letterSpacing:-2, lineHeight:1.06, marginBottom:14 }}>
+                All Of Your Intelligence<br/>
+                <span className="grad">In One Place</span>
+              </h2>
+              <p style={{ fontSize:16, color:"var(--w55)", maxWidth:400, margin:"0 auto" }}>
+                A social intelligence environment for urban safety analysts and developers.
+              </p>
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10, marginBottom:60 }}>
+              {[
+                { icon:"💬", n:"01", t:"Remain In Flow\nWhile Querying",      d:"No SQL needed. Ask like a colleague — 'Which areas are most dangerous?' AURA understands, translates, and returns data without breaking your flow.", c:"rgba(99,102,241,0.1)" },
+                { icon:"🚀", n:"02", t:"Roll Out Results To\nYour Entire Team", d:"Results arrive as clean shareable risk cards. CRITICAL, ELEVATED, NOMINAL. Share intelligence instantly across your whole organization.", c:"rgba(124,58,237,0.07)" },
+                { icon:"🤖", n:"03", t:"Become A\nLeader In AI",                d:"GPT-4o-mini converts your question to deterministic Databricks SQL — SELECT-only locked, zero modification risk, 100% safe in production.", c:"rgba(79,70,229,0.09)" },
+                { icon:"⚡", n:"04", t:"Accelerate\nDevelopment",               d:"847K+ indexed records. Real-time risk scoring. Population and crime data normalized to a 0–100 index. Results in seconds, not hours.", c:"rgba(139,92,246,0.08)" },
+              ].map((s, i) => (
+                <div key={s.n} className="feat" style={{
+                  ...reveal(500 + i * 60, 140),
+                  transition: `opacity 0.55s ease ${i*0.08}s, transform 0.55s ease ${i*0.08}s`,
+                  padding: "38px 34px",
+                  background: s.c,
+                  border: "1px solid rgba(255,255,255,0.07)",
+                  borderRadius: i===0?"22px 8px 8px 8px":i===1?"8px 22px 8px 8px":i===2?"8px 8px 8px 22px":"8px 8px 22px 8px",
+                  position: "relative", overflow: "hidden",
+                  boxShadow: "0 8px 40px rgba(0,0,0,0.3)",
+                }}>
+                  <div style={{ position:"absolute", top:-8, right:20, fontFamily:"var(--mono)", fontSize:80, color:"rgba(255,255,255,0.025)", fontWeight:800, lineHeight:1, userSelect:"none" }}>{s.n}</div>
+                  <div style={{ fontSize:32, marginBottom:18 }}>{s.icon}</div>
+                  <div style={{ fontFamily:"var(--mono)", fontSize:9, color:"var(--p3)", letterSpacing:3, marginBottom:10, opacity:0.65 }}>STEP {s.n}</div>
+                  <div style={{ fontWeight:700, fontSize:21, color:"var(--w)", marginBottom:12, letterSpacing:-0.5, whiteSpace:"pre-line", lineHeight:1.2 }}>{s.t}</div>
+                  <div style={{ fontSize:14, lineHeight:1.78, color:"var(--w55)" }}>{s.d}</div>
+                  <div style={{ position:"absolute", bottom:0, left:0, right:0, height:1, background:"linear-gradient(90deg,transparent,rgba(124,58,237,0.3),transparent)" }}/>
+                </div>
+              ))}
+            </div>
+
+            {/* Example queries */}
+            <div style={{ ...reveal(900, 140), transition:"opacity 0.5s ease,transform 0.5s ease" }}>
+              <div style={{ textAlign:"center", marginBottom:22 }}>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"5px 16px", borderRadius:100, background:"rgba(124,58,237,0.08)", border:"1px solid rgba(124,58,237,0.2)", fontFamily:"var(--mono)", fontSize:10, color:"var(--w30)", letterSpacing:2 }}>EXAMPLE QUERIES — CLICK TO USE</div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                {EXAMPLES.map((ex,i)=>(
+                  <div key={i} className="ex-row" style={{ padding:"15px 20px", background:"rgba(255,255,255,0.02)", border:"1px solid var(--b)", borderRadius:12, display:"flex", alignItems:"center", gap:14 }}
+                    onClick={()=>{ setQuestion(ex); document.getElementById("terminal")?.scrollIntoView({ behavior:"smooth" }); }}>
+                    <div style={{ width:28, height:28, borderRadius:8, flexShrink:0, background:"rgba(124,58,237,0.14)", border:"1px solid rgba(124,58,237,0.25)", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"var(--mono)", fontSize:10, color:"var(--p3)" }}>{String(i+1).padStart(2,"0")}</div>
+                    <span style={{ fontSize:13, color:"var(--w55)", lineHeight:1.45, flex:1 }}>{ex}</span>
+                    <span style={{ color:"var(--w30)", fontSize:14 }}>→</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* ══════ TERMINAL ══════ */}
+          <section id="terminal" style={{ padding:"0 44px 130px", maxWidth:1100, margin:"0 auto", position:"relative", zIndex:2 }}>
+            <div style={{ ...reveal(1200, 140), transition:"opacity 0.5s ease,transform 0.5s ease", textAlign:"center", marginBottom:48 }}>
+              <div style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"5px 16px", borderRadius:100, background:"rgba(124,58,237,0.09)", border:"1px solid rgba(124,58,237,0.22)", fontFamily:"var(--mono)", fontSize:10, color:"var(--p3)", letterSpacing:2, marginBottom:18 }}>⬡ INTELLIGENCE TERMINAL</div>
+              <h2 style={{ fontWeight:800, fontSize:"clamp(34px,4.5vw,60px)", letterSpacing:-2, lineHeight:1.06 }}>Query the City.</h2>
+            </div>
+
+            <div style={{
+              ...reveal(1250, 160), transition:"opacity 0.55s ease,transform 0.55s ease",
+              background:"rgba(9,9,26,0.92)", backdropFilter:"blur(24px)",
+              border:"1px solid rgba(99,102,241,0.16)", borderRadius:20,
+              display:"flex", flexDirection:"column", height:"70vh",
+              boxShadow:"0 0 0 1px rgba(124,58,237,0.06), 0 40px 100px rgba(0,0,0,0.75), 0 0 60px rgba(99,102,241,0.07)",
+              position:"relative", overflow:"hidden",
+            }}>
+              {loading && <div className="sw"/>}
+              {/* Chrome */}
+              <div style={{ padding:"12px 18px", borderBottom:"1px solid var(--b)", background:"rgba(255,255,255,0.02)", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                  <div style={{ display:"flex", gap:6 }}>{["#ff5f57","#febc2e","#28c840"].map((c,i)=><div key={i} style={{width:11,height:11,borderRadius:"50%",background:c}}/>)}</div>
+                  <span style={{ fontFamily:"var(--mono)", fontSize:12, color:"var(--w30)" }}>aura — risk_query</span>
+                </div>
+                <span style={{ fontFamily:"var(--mono)", fontSize:10, letterSpacing:2, color:loading?"#ff9f0a":"#30d158" }}>
+                  {loading?<>PROCESSING<span className="bk">_</span></>:<>READY<span className="bk">_</span></>}
                 </span>
               </div>
-            </div>
 
-            {/* Messages area */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px", display: "flex", flexDirection: "column", gap: 24 }}>
-
-              {/* Empty state */}
-              {messages.length === 0 && (
-                <div style={{
-                  flex: 1, display: "flex", flexDirection: "column",
-                  justifyContent: "center", alignItems: "center", gap: 20, opacity: 0.5
-                }}>
-                  <div style={{
-                    width: 80, height: 80, border: "1px solid rgba(0,229,255,0.3)",
-                    borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                    position: "relative"
-                  }}>
-                    <div style={{ fontSize: 32 }}>🛡️</div>
-                    <div style={{
-                      position: "absolute", inset: -8,
-                      border: "1px solid rgba(0,229,255,0.15)", borderRadius: "50%"
-                    }} />
+              {/* Feed */}
+              <div ref={feedRef} style={{ flex:1, overflowY:"auto", padding:"28px", display:"flex", flexDirection:"column", gap:20 }}>
+                {messages.length===0 && (
+                  <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:14, opacity:0.25 }}>
+                    <div style={{ width:56, height:56, borderRadius:16, background:"rgba(124,58,237,0.15)", border:"1px solid rgba(124,58,237,0.2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:24 }}>🔍</div>
+                    <div style={{ fontFamily:"var(--mono)", fontSize:11, letterSpacing:3, color:"var(--w55)", textAlign:"center" }}>TYPE A QUERY OR CLICK AN EXAMPLE ABOVE</div>
                   </div>
-                  <div style={{ fontFamily: "var(--mono)", fontSize: 14, letterSpacing: 3, color: "rgba(0,229,255,0.5)", textAlign: "center" }}>
-                    AWAITING QUERY INPUT<br />
-                    <span style={{ opacity: 0.4, fontSize: 10, letterSpacing: 1, fontFamily: "var(--body)", fontWeight: 300, lineHeight: 2 }}>
-                      Ask about crime vectors, risk indices, or safety corridors
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {messages.map((msg, i) => {
-                if (msg.role === "user") {
-                  return (
-                    <div key={i} className="user-msg-in" style={{ display: "flex", justifyContent: "flex-end" }}>
-                      <div style={{
-                        maxWidth: "70%", padding: "12px 20px",
-                        background: "rgba(0,229,255,0.08)",
-                        border: "1px solid rgba(0,229,255,0.25)",
-                        borderRadius: "8px 8px 2px 8px",
-                        fontFamily: "var(--body)", fontSize: 20, fontWeight: 500,
-                        color: "#e0e8f0", lineHeight: 1.6,
-                        boxShadow: "0 0 20px rgba(0,229,255,0.05)"
-                      }}>
-                        <div style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: 3, color: "rgba(0,229,255,0.4)", marginBottom: 6 }}>
-                          QUERY INPUT
-                        </div>
+                )}
+                {messages.map((msg,i)=>{
+                  if(msg.role==="user") return (
+                    <div key={i} className="mr" style={{ display:"flex", justifyContent:"flex-end" }}>
+                      <div style={{ maxWidth:"64%", padding:"12px 18px", background:"rgba(124,58,237,0.13)", border:"1px solid rgba(124,58,237,0.22)", borderRadius:"16px 16px 4px 16px", fontFamily:"var(--mono)", fontSize:13, color:"var(--w)", lineHeight:1.6 }}>
+                        <div style={{ fontSize:8, letterSpacing:3, color:"var(--p3)", marginBottom:6, opacity:0.7 }}>QUERY</div>
                         {msg.content}
                       </div>
                     </div>
                   );
-                }
-
-                return (
-                  <div key={i} className="msg-in" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-                    {/* Answer */}
-                    {msg.answer && (
-                      <div style={{
-                        padding: "16px 20px",
-                        background: "rgba(0,0,0,0.4)",
-                        border: "1px solid rgba(255,255,255,0.06)",
-                        borderLeft: "3px solid var(--cyan)",
-                        borderRadius: "0 8px 8px 0",
-                        fontSize: 19, lineHeight: 1.8, color: "rgba(255,255,255,0.7)"
-                      }}>
-                        <div style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: 3, color: "rgba(0,229,255,0.4)", marginBottom: 10 }}>
-                          // ANALYST OUTPUT
+                  return (
+                    <div key={i} className="ml" style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                      {msg.answer && (
+                        <div style={{ padding:"13px 18px", background:"var(--bg4)", border:"1px solid var(--b)", borderLeft:"2px solid var(--p2)", borderRadius:"4px 16px 16px 16px", fontFamily:"var(--mono)", fontSize:13, lineHeight:1.85, color:"var(--w55)" }}>
+                          <div style={{ fontSize:8, letterSpacing:3, color:"rgba(167,139,250,0.5)", marginBottom:8 }}>ANALYST REPORT</div>
+                          {msg.answer}
                         </div>
-                        {msg.answer}
-                      </div>
-                    )}
-
-                    {/* Cards */}
-                    {msg.results && msg.results.length > 0 && (
-                      <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
-                        {msg.results.map((store: any, j: number) => {
-                          const risk = getRiskColor(store.priority_score);
-                          const pct = Math.min(100, (store.priority_score / 100) * 100);
-                          return (
-                            <div key={j} className="card-reveal" style={{
-                              animationDelay: `${j * 100}ms`,
-                              minWidth: 260, flexShrink: 0,
-                              background: "rgba(0,0,0,0.5)",
-                              border: `1.5px solid rgba(${store.priority_score >= 50 ? "255,59,59" : store.priority_score >= 20 ? "255,170,0" : "0,229,255"},0.28)`,
-                              borderRadius: 8, padding: "20px",
-                              position: "relative", overflow: "hidden",
-                              transition: "transform 0.2s ease, box-shadow 0.2s ease"
-                            }}
-                              onMouseEnter={e => {
-                                (e.currentTarget as HTMLDivElement).style.transform = "translateY(-4px)";
-                                (e.currentTarget as HTMLDivElement).style.boxShadow = `0 8px 40px ${risk.glow}20`;
-                              }}
-                              onMouseLeave={e => {
-                                (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
-                                (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
-                              }}
-                            >
-                              {/* Corner accent */}
-                              <div style={{
-                                position: "absolute", top: 0, right: 0,
-                                width: 0, height: 0,
-                                borderStyle: "solid", borderWidth: "0 32px 32px 0",
-                                borderColor: `transparent ${risk.color}22 transparent transparent`
-                              }} />
-
-                              {/* Risk badge */}
-                              <div style={{
-                                fontFamily: "var(--mono)", fontSize: 11, letterSpacing: 3,
-                                color: risk.color, marginBottom: 12,
-                                display: "flex", alignItems: "center", gap: 6
-                              }}>
-                                <div style={{ width: 5, height: 5, borderRadius: "50%", background: risk.color, boxShadow: `0 0 6px ${risk.color}` }} />
-                                {risk.label}
-                              </div>
-
-                              {/* Store name */}
-                              <div style={{
-                                fontFamily: "var(--display)", fontSize: 22, letterSpacing: 2,
-                                color: "#fff", marginBottom: 4, lineHeight: 1.2
-                              }}>
-                                {store.store_name || `ZIP ${store.zip_code}`}
-                              </div>
-                              <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "rgba(255,255,255,0.25)", letterSpacing: 2, marginBottom: 20 }}>
-                                {store.city?.trim() || "UNKNOWN"} // {store.zip_code}
-                              </div>
-
-                              {/* Stats */}
-                              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-                                <div>
-                                  <div style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: 2, color: "rgba(255,255,255,0.3)", marginBottom: 4 }}>CRIMES</div>
-                                  <div style={{ fontFamily: "var(--display)", fontSize: 24, color: "#ff3b3b", letterSpacing: 2 }}>{(store.total_crimes || 0).toLocaleString()}</div>
+                      )}
+                      {msg.results?.length>0 && (
+                        <div style={{ display:"flex", gap:10, overflowX:"auto", paddingBottom:6 }}>
+                          {msg.results.map((store:any,j:number)=>{
+                            const r=riskOf(store.priority_score);
+                            return (
+                              <div key={j} className="ci rcard" style={{ animationDelay:`${j*65}ms`, minWidth:212, flexShrink:0, background:r.bg, border:`1px solid ${r.c}22`, borderRadius:14, padding:"16px", position:"relative", overflow:"hidden" }}>
+                                <div style={{ fontFamily:"var(--mono)", fontSize:9, letterSpacing:2, color:r.c, marginBottom:8, display:"flex", alignItems:"center", gap:5 }}>
+                                  <div style={{ width:5, height:5, borderRadius:"50%", background:r.c, boxShadow:`0 0 6px ${r.c}` }}/>{r.l}
                                 </div>
-                                <div style={{ textAlign: "right" }}>
-                                  <div style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: 2, color: "rgba(255,255,255,0.3)", marginBottom: 4 }}>POPULATION</div>
-                                  <div style={{ fontFamily: "var(--display)", fontSize: 24, color: "#4d9fff", letterSpacing: 2 }}>{(store.population || 0).toLocaleString()}</div>
+                                <div style={{ fontWeight:600, fontSize:14, color:"var(--w)", marginBottom:2, lineHeight:1.2 }}>{store.store_name||`ZIP ${store.zip_code}`}</div>
+                                <div style={{ fontFamily:"var(--mono)", fontSize:10, color:"var(--w30)", letterSpacing:1, marginBottom:14 }}>{store.city?.trim()||"UNKNOWN"} · {store.zip_code}</div>
+                                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
+                                  <div><div style={{ fontFamily:"var(--mono)", fontSize:8, letterSpacing:2, color:"var(--w30)", marginBottom:3 }}>CRIMES</div><div style={{ fontWeight:700, fontSize:20, color:"#ff453a" }}>{(store.total_crimes||0).toLocaleString()}</div></div>
+                                  <div><div style={{ fontFamily:"var(--mono)", fontSize:8, letterSpacing:2, color:"var(--w30)", marginBottom:3 }}>POP.</div><div style={{ fontWeight:700, fontSize:20, color:"#60a5fa" }}>{(store.population||0).toLocaleString()}</div></div>
+                                </div>
+                                <div style={{ fontFamily:"var(--mono)", fontSize:8, letterSpacing:2, color:"var(--w30)", display:"flex", justifyContent:"space-between", marginBottom:5 }}>
+                                  <span>RISK INDEX</span><span style={{ color:r.c, fontWeight:700, fontSize:13 }}>{store.priority_score}</span>
+                                </div>
+                                <div style={{ height:3, background:"rgba(255,255,255,0.05)", borderRadius:2, overflow:"hidden" }}>
+                                  <div className="fb" style={{ height:"100%", width:`${Math.min(100,store.priority_score)}%`, background:`linear-gradient(90deg,${r.c}88,${r.c})`, borderRadius:2 }}/>
                                 </div>
                               </div>
-
-                              {/* Risk bar */}
-                              <div>
-                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontFamily: "var(--mono)", fontSize: 11, letterSpacing: 2 }}>
-                                  <span style={{ color: "rgba(255,255,255,0.3)" }}>RISK INDEX</span>
-                                  <span style={{ color: risk.color, fontSize: 18, fontFamily: "var(--display)", letterSpacing: 3 }}>{store.priority_score}</span>
-                                </div>
-                                <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
-                                  <div className="fill-bar" style={{
-                                    height: "100%", width: `${pct}%`,
-                                    background: `linear-gradient(90deg, ${risk.color}88, ${risk.color})`,
-                                    boxShadow: `0 0 8px ${risk.color}`,
-                                    borderRadius: 2
-                                  }} />
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {loading && (
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    {[1,2,3].map(n=><div key={n} className={`d${n}`} style={{width:7,height:7,borderRadius:"50%",background:"var(--p2)"}}/>)}
+                    <span style={{ fontFamily:"var(--mono)", fontSize:10, letterSpacing:2, color:"var(--w30)", marginLeft:4 }}>Scanning risk vectors...</span>
                   </div>
-                );
-              })}
-
-              {/* Loading state */}
-              {loading && (
-                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    {[0,1,2].map(i => (
-                      <div key={i} className="load-dot" style={{
-                        width: 8, height: 8, borderRadius: "50%", background: "var(--cyan)"
-                      }} />
-                    ))}
-                  </div>
-                  <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: 3, color: "rgba(0,229,255,0.5)" }}>
-                    SCANNING RISK VECTORS
-                  </span>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input bar */}
-            <div style={{
-              borderTop: "1px solid rgba(0,229,255,0.1)",
-              background: "rgba(0,0,0,0.5)", padding: "16px 20px",
-              flexShrink: 0, display: "flex", gap: 12, alignItems: "center"
-            }}>
-              <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--cyan)", flexShrink: 0 }}>›</div>
-              <input
-                ref={inputRef}
-                className="input-glow"
-                style={{
-                  flex: 1, background: "transparent", border: "none", outline: "none",
-                  color: "#e0e8f0", fontFamily: "var(--mono)", fontSize: 19, letterSpacing: 1,
-                  caretColor: "var(--cyan)", transition: "box-shadow 0.2s"
-                }}
-                placeholder="enter query: crime vectors, risk indices, safety corridors..."
-                value={question}
-                onChange={e => setQuestion(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && askQuestion()}
-              />
-              <button
-                onClick={askQuestion}
-                disabled={loading || !question.trim()}
-                style={{
-                  padding: "10px 24px", borderRadius: 4,
-                  border: "1px solid rgba(0,229,255,0.4)",
-                  background: question.trim() && !loading ? "rgba(0,229,255,0.1)" : "transparent",
-                  color: question.trim() && !loading ? "var(--cyan)" : "rgba(255,255,255,0.2)",
-                  fontFamily: "var(--mono)", fontSize: 13, letterSpacing: 3,
-                  transition: "all 0.2s ease", flexShrink: 0,
-                  boxShadow: question.trim() && !loading ? "0 0 20px rgba(0,229,255,0.1)" : "none"
-                }}
-                onMouseEnter={e => { if (!loading && question.trim()) (e.currentTarget.style.background = "var(--cyan)"), (e.currentTarget.style.color = "#000"); }}
-                onMouseLeave={e => { (e.currentTarget.style.background = question.trim() && !loading ? "rgba(0,229,255,0.1)" : "transparent"), (e.currentTarget.style.color = question.trim() && !loading ? "var(--cyan)" : "rgba(255,255,255,0.2)"); }}
-              >
-                EXECUTE
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* ═══════════════════════════════ SYSTEM ═══════════════════════════════ */}
-        <section id="about" style={{
-          minHeight: "100vh", padding: "100px 40px",
-          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-          borderTop: "1px solid rgba(255,255,255,0.04)",
-          position: "relative", zIndex: 10
-        }}>
-          <div style={{ fontFamily: "var(--mono)", fontSize: 10, letterSpacing: 4, color: "rgba(0,229,255,0.4)", marginBottom: 16 }}>
-            // SYSTEM ARCHITECTURE
-          </div>
-          <div style={{ fontFamily: "var(--display)", fontSize: "clamp(36px,6vw,72px)", letterSpacing: 8, color: "#fff", marginBottom: 80, textAlign: "center" }}>
-            INTELLIGENCE <span style={{ color: "var(--cyan)" }}>STACK</span>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 2, maxWidth: 960, width: "100%" }}>
-            {[
-              { icon: "🤖", num: "01", title: "NATURAL AI", color: "var(--cyan)", desc: "GPT-4o-mini at Temperature 0 converts plain English to precision Databricks SQL with hardcoded demo failsafes for guaranteed stability." },
-              { icon: "🌩️", num: "02", title: "LAKEHOUSE", color: "var(--gold)", desc: "Direct Databricks cluster integration over the @databricks/sql connector. Queries execute against 847K+ indexed urban records in real time." },
-              { icon: "📊", num: "03", title: "RISK INDEX", color: "var(--red)", desc: "Raw crime and population data is normalized to a 0–100 Risk Index. Higher score = more vulnerable. Lower = safer corridors for planning." },
-            ].map((card, i) => (
-              <div key={i} style={{
-                padding: "40px 32px",
-                background: "var(--surface)",
-                border: "1px solid rgba(255,255,255,0.05)",
-                position: "relative", overflow: "hidden",
-                transition: "border-color 0.3s"
-              }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = `${card.color}44`)}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)")}
-              >
-                <div style={{ fontFamily: "var(--display)", fontSize: 80, color: card.color, opacity: 0.06, position: "absolute", top: -10, right: 16, lineHeight: 1, letterSpacing: 0 }}>
-                  {card.num}
-                </div>
-                <div style={{ fontSize: 36, marginBottom: 20 }}>{card.icon}</div>
-                <div style={{ fontFamily: "var(--display)", fontSize: 22, letterSpacing: 4, color: "#fff", marginBottom: 16 }}>{card.title}</div>
-                <div style={{ fontSize: 15, lineHeight: 1.8, color: "rgba(255,255,255,0.35)", fontWeight: 300 }}>{card.desc}</div>
-                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${card.color}44, transparent)` }} />
+                )}
               </div>
-            ))}
-          </div>
 
-          {/* Bottom signature */}
-          <div style={{
-            marginTop: 100, textAlign: "center",
-            fontFamily: "var(--mono)", fontSize: 10,
-            color: "rgba(255,255,255,0.1)", letterSpacing: 3, lineHeight: 2.5
-          }}>
-            <div style={{ fontFamily: "var(--display)", fontSize: 32, letterSpacing: 12, color: "rgba(0,229,255,0.1)", marginBottom: 12 }}>AURA</div>
-            AUTOMATED URBAN RISK ANALYTICS // V1.04<br />
-            POWERED BY DATABRICKS + OPENAI // NEXT.JS 16
+              {/* Input */}
+              <div style={{ borderTop:"1px solid var(--b)", background:"rgba(9,9,26,0.6)", padding:"13px 18px", display:"flex", gap:10, alignItems:"center", flexShrink:0 }}>
+                <input className="inp" style={{ flex:1, background:"rgba(255,255,255,0.04)", border:"1px solid var(--b2)", borderRadius:12, padding:"10px 16px", color:"var(--w)", fontFamily:"var(--mono)", fontSize:13, caretColor:"var(--p2)", transition:"border-color 0.2s,box-shadow 0.2s" }} placeholder="Ask anything about urban safety data..." value={question} onChange={e=>setQuestion(e.target.value)} onKeyDown={e=>e.key==="Enter"&&fire()}/>
+                <button className="fbtn" onClick={fire} disabled={loading||!question.trim()} style={{ padding:"10px 24px", borderRadius:12, background:question.trim()&&!loading?"linear-gradient(135deg,var(--ind),var(--p),var(--p2))":"rgba(255,255,255,0.04)", border:"none", color:question.trim()&&!loading?"var(--w)":"var(--w30)", fontFamily:"var(--sans)", fontSize:13, fontWeight:700, flexShrink:0, boxShadow:question.trim()&&!loading?"0 0 20px var(--glow2)":"none", transition:"all 0.18s ease" }}>
+                  {loading?"...":"Execute"}
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* ══════ SYSTEM ══════ */}
+          <section id="system" style={{ padding:"0 44px 130px", maxWidth:1100, margin:"0 auto", position:"relative", zIndex:2 }}>
+            <div style={{ ...reveal(1900, 140), transition:"opacity 0.5s ease,transform 0.5s ease", textAlign:"center", marginBottom:52 }}>
+              <div style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"5px 16px", borderRadius:100, background:"rgba(124,58,237,0.09)", border:"1px solid rgba(124,58,237,0.22)", fontFamily:"var(--mono)", fontSize:10, color:"var(--p3)", letterSpacing:2, marginBottom:18 }}>⬢ SYSTEM</div>
+              <h2 style={{ fontWeight:800, fontSize:"clamp(34px,4.5vw,60px)", letterSpacing:-2, lineHeight:1.06 }}>Built on Real Infrastructure</h2>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
+              {[
+                { icon:"🤖", t:"AI Engine",  c:"var(--p3)", d:"GPT-4o-mini at Temperature 0. Deterministic SQL. SELECT-only enforcement. Zero modification risk in production.", delay:0 },
+                { icon:"⚡", t:"Databricks", c:"#60a5fa",   d:"Direct cluster integration. 847,214 records across ZIP codes, stores, crime totals, and population.", delay:80 },
+                { icon:"📊", t:"Risk Index", c:"#ff453a",   d:"Crime and population normalized to 0–100 in real time. Powers every card classification automatically.", delay:160 },
+              ].map(card=>(
+                <div key={card.t} className="feat" style={{
+                  ...reveal(2000 + card.delay, 130),
+                  transition:`opacity 0.5s ease ${card.delay}ms,transform 0.5s ease ${card.delay}ms`,
+                  padding:"34px 28px", background:"rgba(255,255,255,0.02)", border:"1px solid var(--b)", borderRadius:20,
+                  position:"relative", overflow:"hidden", boxShadow:"0 8px 40px rgba(0,0,0,0.3)",
+                }}>
+                  <div style={{ fontSize:36, marginBottom:18 }}>{card.icon}</div>
+                  <div style={{ fontWeight:700, fontSize:18, color:card.c, marginBottom:10, letterSpacing:-0.3 }}>{card.t}</div>
+                  <div style={{ fontSize:14, lineHeight:1.78, color:"var(--w55)" }}>{card.d}</div>
+                  <div style={{ position:"absolute", bottom:0, left:0, right:0, height:1, background:`linear-gradient(90deg,${card.c}22,transparent)` }}/>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* ══════ BETA ══════ */}
+          <section id="beta" style={{ padding:"0 44px 140px", maxWidth:1100, margin:"0 auto", position:"relative", zIndex:2 }}>
+            <div style={{
+              ...reveal(2400, 150), transition:"opacity 0.55s ease,transform 0.55s ease",
+              border:"1px solid rgba(255,69,58,0.15)", borderRadius:20, padding:"46px 50px",
+              background:"rgba(255,69,58,0.025)", position:"relative",
+              boxShadow:"0 0 60px rgba(255,69,58,0.04)",
+              animation:"betaBorder 2.5s ease infinite",
+            }}
+              className="betab"
+            >
+              <div style={{ position:"absolute", top:20, right:24, display:"inline-flex", alignItems:"center", gap:6, padding:"5px 14px", borderRadius:100, background:"rgba(255,69,58,0.1)", border:"1px solid rgba(255,69,58,0.25)", fontFamily:"var(--mono)", fontSize:10, color:"#ff453a", letterSpacing:2 }}>⚠ BETA v0.1</div>
+              <h2 style={{ fontWeight:800, fontSize:"clamp(28px,3.5vw,46px)", letterSpacing:-1.5, lineHeight:1.08, marginBottom:10 }}>Rough Edges. Real Data.</h2>
+              <p style={{ fontSize:16, color:"var(--w55)", marginBottom:38, maxWidth:500 }}>AURA is experimental. Powerful but not perfect. Here's what to know before you dive in.</p>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:44 }}>
+                <div>
+                  <div style={{ fontFamily:"var(--mono)", fontSize:9, letterSpacing:3, color:"rgba(255,69,58,0.55)", marginBottom:20 }}>KNOWN LIMITATIONS</div>
+                  {["Queries may occasionally fail or misfire","Some questions get misinterpreted","Cluster may time out — just retry","Indexed data only, not a live feed","Not for operational or policy decisions"].map((x,i)=>(
+                    <div key={i} style={{ display:"flex", gap:12, marginBottom:12, alignItems:"flex-start" }}>
+                      <div style={{ width:20, height:20, borderRadius:7, background:"rgba(255,69,58,0.1)", border:"1px solid rgba(255,69,58,0.2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, color:"#ff453a", flexShrink:0, marginTop:1 }}>✗</div>
+                      <span style={{ fontSize:14, color:"var(--w55)", lineHeight:1.65 }}>{x}</span>
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <div style={{ fontFamily:"var(--mono)", fontSize:9, letterSpacing:3, color:"rgba(48,209,88,0.55)", marginBottom:20 }}>BEST PRACTICES</div>
+                  {["One clear question at a time","Include city names for accuracy","Use extremes — highest, lowest, most","Rephrase and retry if nothing returns","Research and exploration only"].map((x,i)=>(
+                    <div key={i} style={{ display:"flex", gap:12, marginBottom:12, alignItems:"flex-start" }}>
+                      <div style={{ width:20, height:20, borderRadius:7, background:"rgba(48,209,88,0.1)", border:"1px solid rgba(48,209,88,0.2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, color:"#30d158", flexShrink:0, marginTop:1 }}>✓</div>
+                      <span style={{ fontSize:14, color:"var(--w55)", lineHeight:1.65 }}>{x}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ marginTop:34, paddingTop:26, borderTop:"1px solid var(--b)", fontFamily:"var(--mono)", fontSize:11, color:"var(--w30)", lineHeight:2 }}>
+                AURA is experimental. Provided as-is for demo purposes. Not for law enforcement, policy, or operational use. If it breaks — we know. We're fixing it.
+              </div>
+            </div>
+          </section>
+
+          {/* FOOTER */}
+          <div style={{ borderTop:"1px solid var(--b)", padding:"28px 44px", display:"flex", justifyContent:"space-between", alignItems:"center", position:"relative", zIndex:2 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+              <div style={{ width:26, height:26, borderRadius:8, background:"linear-gradient(135deg,var(--ind),var(--p2))", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, boxShadow:"0 0 12px var(--glow2)" }}>A</div>
+              <span style={{ fontWeight:800, fontSize:15, letterSpacing:-0.2 }}>AURA</span>
+            </div>
+            <div style={{ fontFamily:"var(--mono)", fontSize:10, color:"var(--w30)", letterSpacing:1 }}>URBAN RISK ANALYTICS · v0.1 BETA · DATABRICKS + OPENAI</div>
+            <div style={{ fontFamily:"var(--mono)", fontSize:10, color:"rgba(255,255,255,0.08)", letterSpacing:1 }}>URA-2026</div>
           </div>
-        </section>
-      </div>
+        </div>
+      )}
     </>
   );
-}   
+}

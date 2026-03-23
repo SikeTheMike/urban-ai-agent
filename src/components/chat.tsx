@@ -163,8 +163,7 @@ export default function Chat() {
   useEffect(()=>{let i=0;const t=setInterval(()=>{i++;setBootLine(i);if(i>=BOOT_LINES.length){clearInterval(t);setTimeout(()=>{setPhase("disclaimer");setTimeout(()=>setDisclaimerIn(true),80);},700);}},200);return()=>clearInterval(t);},[]);
   useEffect(()=>{if(phase==="disclaimer"&&disclaimerIn){const t=setTimeout(()=>setAcceptPulse(true),1800);return()=>clearTimeout(t);}},[phase,disclaimerIn]);
   useEffect(()=>{feedRef.current?.scrollTo({top:feedRef.current.scrollHeight,behavior:"smooth"});},[messages]);
-  useEffect(()=>{const l=document.createElement("link");l.rel="preload";l.as="video";l.href="https://cdn.coverr.co/videos/coverr-driving-through-new-york-city-at-night-2751/1080p.mp4";document.head.appendChild(l);},[]);
-
+  useEffect(()=>{const l=document.createElement("link");l.rel="preload";l.as="video";l.href="https://assets.mixkit.co/videos/preview/mixkit-city-traffic-on-the-street-at-night-3453-large.mp4";document.head.appendChild(l);},[]);
   useEffect(()=>{if(phase!=="app"||!mapVisible||!mapRef.current||leafletMap.current)return;const init=async()=>{if(!document.getElementById("leaflet-css")){const l=document.createElement("link");l.id="leaflet-css";l.rel="stylesheet";l.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";document.head.appendChild(l);}if(!(window as any).L){await new Promise<void>(r=>{const s=document.createElement("script");s.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";s.onload=()=>r();document.head.appendChild(s);});}const L=(window as any).L;if(!mapRef.current||leafletMap.current)return;const map=L.map(mapRef.current,{center:[33.4484,-112.0740],zoom:10,zoomControl:true,attributionControl:false});L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{maxZoom:19}).addTo(map);markersLayer.current=L.layerGroup().addTo(map);leafletMap.current=map;if(mapResults.length>0)updateMapMarkers(map,L,mapResults);};init();},[phase,mapVisible]);
   useEffect(()=>{if(!leafletMap.current||!(window as any).L)return;updateMapMarkers(leafletMap.current,(window as any).L,mapResults);},[mapResults]);
 
@@ -203,7 +202,7 @@ export default function Chat() {
           {/* HERO */}
           <section ref={heroRef} style={{position:"relative",height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
             <motion.div style={{position:"absolute",inset:0,y:heroY,opacity:heroOpacity,scale:heroScale}}>
-              <video autoPlay loop muted playsInline style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}><source src="https://cdn.coverr.co/videos/coverr-driving-through-new-york-city-at-night-2751/1080p.mp4" type="video/mp4"/></video>
+              <video autoPlay loop muted playsInline style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}><source src="https://assets.mixkit.co/videos/preview/mixkit-city-traffic-on-the-street-at-night-3453-large.mp4" type="video/mp4"/></video>
               <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,rgba(2,4,10,.6) 0%,rgba(2,4,10,.4) 50%,#02040A 100%)"}}/>
             </motion.div>
             <div style={{position:"relative",zIndex:10,textAlign:"center",padding:"0 24px",maxWidth:900,margin:"0 auto"}}>
